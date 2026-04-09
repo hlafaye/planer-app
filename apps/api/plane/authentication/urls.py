@@ -45,6 +45,11 @@ from .views import (
     GiteaCallbackSpaceEndpoint,
     GiteaOauthInitiateSpaceEndpoint,
 )
+# Planer custom: OIDC SSO
+from plane.authentication.views.app.oidc import (
+    OIDCOauthInitiateEndpoint,
+    OIDCCallbackEndpoint,
+)
 
 urlpatterns = [
     # credentials
@@ -137,6 +142,9 @@ urlpatterns = [
     ),
     path("change-password/", ChangePasswordEndpoint.as_view(), name="forgot-password"),
     path("set-password/", SetUserPasswordEndpoint.as_view(), name="set-password"),
+    ## OIDC (Planer custom — Authentik SSO)
+    path("oidc/", OIDCOauthInitiateEndpoint.as_view(), name="oidc-initiate"),
+    path("oidc/callback/", OIDCCallbackEndpoint.as_view(), name="oidc-callback"),
     ## Gitea Oauth
     path("gitea/", GiteaOauthInitiateEndpoint.as_view(), name="gitea-initiate"),
     path("gitea/callback/", GiteaCallbackEndpoint.as_view(), name="gitea-callback"),

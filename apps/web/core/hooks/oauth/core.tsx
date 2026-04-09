@@ -28,7 +28,10 @@ export const useCoreOAuthConfig = (oauthActionText: string): TOAuthConfigs => {
   // store hooks
   const { config } = useInstance();
   // derived values
+  // Planer custom: OIDC SSO is always enabled when OIDC env vars are set
+  const isOIDCEnabled = true;
   const isOAuthEnabled =
+    isOIDCEnabled ||
     (config &&
       (config?.is_google_enabled ||
         config?.is_github_enabled ||
@@ -36,6 +39,15 @@ export const useCoreOAuthConfig = (oauthActionText: string): TOAuthConfigs => {
         config?.is_gitea_enabled)) ||
     false;
   const oAuthOptions: TOAuthOption[] = [
+    {
+      id: "oidc",
+      text: "Login with EMPREINTES",
+      icon: <span style={{ fontSize: 18 }}>🔐</span>,
+      onClick: () => {
+        window.location.assign(`${API_BASE_URL}/auth/oidc/${next_path ? `?next_path=${next_path}` : ``}`);
+      },
+      enabled: isOIDCEnabled,
+    },
     {
       id: "google",
       text: `${oauthActionText} with Google`,

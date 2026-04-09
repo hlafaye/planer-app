@@ -23,5 +23,5 @@ export const IssueBulkOperationsRoot = observer(function IssueBulkOperationsRoot
 
   if (!isSelectionActive || selectionHelpers.isSelectionDisabled) return null;
 
-  return <BulkOperationsUpgradeBanner className={className} />;
+  return null;
 });
