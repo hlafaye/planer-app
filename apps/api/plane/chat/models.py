@@ -42,6 +42,7 @@ class Channel(BaseModel):
     members = models.ManyToManyField(
         "db.User",
         through="ChannelMember",
+        through_fields=("channel", "member"),
         related_name="chat_channels",
     )
     is_archived = models.BooleanField(default=False)
