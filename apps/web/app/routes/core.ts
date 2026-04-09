@@ -114,6 +114,12 @@ export const coreRoutes: RouteConfigEntry[] = [
           ),
         ]),
 
+        // Planer custom: Chat
+        route(":workspaceSlug/chat", "./(all)/[workspaceSlug]/(projects)/chat/page.tsx"),
+
+        // Planer custom: AI
+        route(":workspaceSlug/ai", "./(all)/[workspaceSlug]/(projects)/ai/page.tsx"),
+
         // Archived Projects
         layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/archives/layout.tsx", [
           route(
