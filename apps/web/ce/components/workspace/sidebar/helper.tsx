@@ -40,5 +40,10 @@ export const getSidebarNavigationItemIcon = (key: string, className: string = ""
       return <ArchiveIcon className={cn("size-4 flex-shrink-0", className)} />;
     case "stickies":
       return <MultipleStickyIcon className={cn("size-4 flex-shrink-0", className)} />;
+    // Planer custom: Chat + IA icons
+    case "chat":
+      return <span className={cn("size-4 flex-shrink-0 text-center leading-4", className)}>💬</span>;
+    case "ai":
+      return <span className={cn("size-4 flex-shrink-0 text-center leading-4", className)}>🤖</span>;
   }
 };
