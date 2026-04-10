@@ -116,6 +116,18 @@ class OIDCProvider(OauthAdapter):
         )
 
     def set_user_data(self):
+        import requests as _req
+        import logging
+        _log = logging.getLogger("plane.authentication.oidc")
+        # Debug: manual userinfo call with more details
+        _token = self.token_data.get("access_token", "")
+        _url = self.userinfo_url
+        _log.warning("OIDC debug: userinfo_url=%s token_prefix=%s", _url, _token[:30] if _token else "NONE")
+        try:
+            _r = _req.get(_url, headers={"Authorization": f"Bearer {_token}"})
+            _log.warning("OIDC debug: userinfo status=%s body=%s", _r.status_code, _r.text[:200])
+        except Exception as _e:
+            _log.warning("OIDC debug: userinfo exception=%s", _e)
         user_info_response = self.get_user_response()
         email = user_info_response.get("email")
         name = user_info_response.get("name", "")
