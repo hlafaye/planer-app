@@ -11,6 +11,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
+from plane.authentication.session import BaseSessionAuthentication
 from plane.chat.models import Channel, ChannelMember, Message, MessageAttachment
 from plane.chat.serializers import (
     ChannelSerializer,
@@ -20,7 +21,13 @@ from plane.chat.serializers import (
 from plane.db.models import Issue
 
 
-class ChannelViewSet(ModelViewSet):
+# Mixin for Plane session auth on all chat views
+class ChatAuthMixin:
+    authentication_classes = [BaseSessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+
+class ChannelViewSet(ChatAuthMixin, ModelViewSet):
     """CRUD for chat channels within a workspace."""
 
     serializer_class = ChannelSerializer
@@ -61,7 +68,7 @@ class ChannelViewSet(ModelViewSet):
         instance.save()
 
 
-class MessageViewSet(ModelViewSet):
+class MessageViewSet(ChatAuthMixin, ModelViewSet):
     """CRUD for messages in a channel."""
 
     serializer_class = MessageSerializer
@@ -96,7 +103,7 @@ class MessageViewSet(ModelViewSet):
         serializer.save(is_edited=True, edited_at=dj_timezone.now())
 
 
-class MessageReactionView(APIView):
+class MessageReactionView(ChatAuthMixin, APIView):
     """Add/remove reactions on a message."""
 
     permission_classes = [IsAuthenticated]
@@ -126,7 +133,7 @@ class MessageReactionView(APIView):
         return Response({"reactions": reactions})
 
 
-class AttachmentUploadView(APIView):
+class AttachmentUploadView(ChatAuthMixin, APIView):
     """Upload file attachment to a message."""
 
     permission_classes = [IsAuthenticated]
@@ -159,7 +166,7 @@ class AttachmentUploadView(APIView):
         )
 
 
-class UnreadCountView(APIView):
+class UnreadCountView(ChatAuthMixin, APIView):
     """Get unread message counts per channel."""
 
     permission_classes = [IsAuthenticated]
@@ -190,7 +197,7 @@ class UnreadCountView(APIView):
         return Response({"results": results, "total_unread": total})
 
 
-class MarkReadView(APIView):
+class MarkReadView(ChatAuthMixin, APIView):
     """Mark a channel as read for the current user."""
 
     permission_classes = [IsAuthenticated]
