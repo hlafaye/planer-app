@@ -112,23 +112,44 @@ class OIDCProvider(OauthAdapter):
         )
 
     def set_user_data(self):
-        user_info_response = self.get_user_response()
-        email = user_info_response.get("email")
-        name = user_info_response.get("name", "")
-        parts = name.split(" ", 1) if name else ["", ""]
-        first_name = parts[0]
-        last_name = parts[1] if len(parts) > 1 else ""
+        import jwt as pyjwt
+        import logging
+
+        _log = logging.getLogger("plane.authentication.oidc")
+
+        # Decode id_token directly instead of calling userinfo (avoids 403)
+        id_token = self.token_data.get("id_token")
+        if id_token:
+            try:
+                user_info = pyjwt.decode(
+                    id_token, options={"verify_signature": False}
+                )
+                _log.info("OIDC: decoded id_token for %s", user_info.get("email"))
+            except Exception as e:
+                _log.warning("OIDC: id_token decode failed (%s), falling back to userinfo", e)
+                user_info = self.get_user_response()
+        else:
+            user_info = self.get_user_response()
+
+        email = user_info.get("email")
+        first_name = user_info.get("given_name", "")
+        last_name = user_info.get("family_name", "")
+
+        if not first_name:
+            name = user_info.get("name", "")
+            parts = name.split(" ", 1) if name else ["", ""]
+            first_name = parts[0]
+            last_name = parts[1] if len(parts) > 1 else last_name
+
         super().set_user_data(
             {
                 "email": email,
                 "user": {
-                    "provider_id": user_info_response.get("sub"),
+                    "provider_id": user_info.get("sub"),
                     "email": email,
-                    "avatar": user_info_response.get("picture", ""),
-                    "first_name": first_name
-                    or user_info_response.get("given_name", ""),
-                    "last_name": last_name
-                    or user_info_response.get("family_name", ""),
+                    "avatar": user_info.get("picture", ""),
+                    "first_name": first_name,
+                    "last_name": last_name,
                     "is_password_autoset": True,
                 },
             }
