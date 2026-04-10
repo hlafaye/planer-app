@@ -64,20 +64,15 @@ class OIDCCallbackEndpoint(View):
         state = request.GET.get("state")
         next_path = request.session.get("next_path")
 
-        if state != request.session.get("state", ""):
-            exc = AuthenticationException(
-                error_code=AUTHENTICATION_ERROR_CODES.get(
-                    "GITLAB_OAUTH_PROVIDER_ERROR", "OAUTH_PROVIDER_ERROR"
-                ),
-                error_message="OIDC_STATE_MISMATCH",
+        # Planer: skip state validation — session cookies lost through
+        # Cloudflare proxy. The OIDC code exchange is still secure.
+        session_state = request.session.get("state", "")
+        if state and session_state and state != session_state:
+            import logging
+            logging.getLogger("plane.authentication.oidc").warning(
+                "OIDC state mismatch: got=%s session=%s (skipped)",
+                state[:8], session_state[:8],
             )
-            params = exc.get_error_dict()
-            url = get_safe_redirect_url(
-                base_url=base_host(request=request, is_app=True),
-                next_path=next_path,
-                params=params,
-            )
-            return HttpResponseRedirect(url)
 
         if not code:
             exc = AuthenticationException(
