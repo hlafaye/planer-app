@@ -53,8 +53,12 @@ class OIDCProvider(OauthAdapter):
             )
 
         self.host = OIDC_HOST
-        self.token_url = f"{self.host}/application/o/token/"
-        self.userinfo_url = f"{self.host}/application/o/userinfo/"
+        # Internal URL for server-to-server calls (bypass Cloudflare)
+        internal_host = os.environ.get(
+            "OIDC_INTERNAL_HOST", "http://authentik-server:9000"
+        )
+        self.token_url = f"{internal_host}/application/o/token/"
+        self.userinfo_url = f"{internal_host}/application/o/userinfo/"
 
         client_id = OIDC_CLIENT_ID
         client_secret = OIDC_CLIENT_SECRET
