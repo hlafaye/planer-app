@@ -53,12 +53,8 @@ class OIDCProvider(OauthAdapter):
             )
 
         self.host = OIDC_HOST
-        # Internal URL for server-to-server calls (bypass Cloudflare)
-        internal_host = os.environ.get(
-            "OIDC_INTERNAL_HOST", "http://authentik-server:9000"
-        )
-        self.token_url = f"{internal_host}/application/o/token/"
-        self.userinfo_url = f"{internal_host}/application/o/userinfo/"
+        self.token_url = f"{self.host}/application/o/token/"
+        self.userinfo_url = f"{self.host}/application/o/userinfo/"
 
         client_id = OIDC_CLIENT_ID
         client_secret = OIDC_CLIENT_SECRET
@@ -116,18 +112,6 @@ class OIDCProvider(OauthAdapter):
         )
 
     def set_user_data(self):
-        import requests as _req
-        import logging
-        _log = logging.getLogger("plane.authentication.oidc")
-        # Debug: manual userinfo call with more details
-        _token = self.token_data.get("access_token", "")
-        _url = self.userinfo_url
-        _log.warning("OIDC debug: userinfo_url=%s token_prefix=%s", _url, _token[:30] if _token else "NONE")
-        try:
-            _r = _req.get(_url, headers={"Authorization": f"Bearer {_token}"})
-            _log.warning("OIDC debug: userinfo status=%s body=%s", _r.status_code, _r.text[:200])
-        except Exception as _e:
-            _log.warning("OIDC debug: userinfo exception=%s", _e)
         user_info_response = self.get_user_response()
         email = user_info_response.get("email")
         name = user_info_response.get("name", "")
