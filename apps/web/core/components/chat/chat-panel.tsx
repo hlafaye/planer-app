@@ -35,12 +35,8 @@ export function ChatPanel({ workspaceSlug }: Props) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Poll for new messages every 15s (gentle, avoids page flicker)
-  useEffect(() => {
-    if (!activeChannelId) return;
-    const interval = setInterval(refresh, 15000);
-    return () => clearInterval(interval);
-  }, [activeChannelId, refresh]);
+  // No polling — messages refresh after send + bot reply only
+  // Future: replace with WebSocket push via plane-live
 
   const activeChannel = channels.find((c) => c.id === activeChannelId);
 

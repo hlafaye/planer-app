@@ -15,6 +15,17 @@ logger = logging.getLogger(__name__)
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
 
 
+def _parse_issue_key(key: str):
+    """Parse 'ALBA-42' into (identifier='ALBA', sequence_id=42) or fallback to name search."""
+    if "-" in key:
+        parts = key.rsplit("-", 1)
+        try:
+            return {"project__identifier": parts[0], "sequence_id": int(parts[1])}
+        except (ValueError, IndexError):
+            pass
+    return None
+
+
 class PlainerBot:
     """@planer bot — OCR, summarize, create tasks, search, status."""
 
@@ -91,11 +102,18 @@ class PlainerBot:
         issue_key = args.strip() if args else None
 
         if issue_key:
-            # Summarize specific issue
-            issue = Issue.objects.filter(
-                Q(sequence_id=issue_key) | Q(name__icontains=issue_key),
-                project__workspace=message.channel.workspace,
-            ).first()
+            # Summarize specific issue — parse "ALBA-42" format
+            parsed = _parse_issue_key(issue_key)
+            if parsed:
+                issue = Issue.objects.filter(
+                    **parsed,
+                    project__workspace=message.channel.workspace,
+                ).first()
+            else:
+                issue = Issue.objects.filter(
+                    Q(name__icontains=issue_key),
+                    project__workspace=message.channel.workspace,
+                ).first()
             if not issue:
                 PlainerBot._reply(message, f"❌ Issue '{issue_key}' non trouvée")
                 return
