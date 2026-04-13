@@ -14,8 +14,9 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchProject() {
       try {
+        // Use internal API (session auth) instead of v1 (API key)
         const resp = await fetch(
-          `${API_BASE_URL}/api/v1/workspaces/${workspaceSlug}/projects/`,
+          `${API_BASE_URL}/api/workspaces/${workspaceSlug}/projects/`,
           { credentials: "include" }
         );
         if (resp.ok) {
