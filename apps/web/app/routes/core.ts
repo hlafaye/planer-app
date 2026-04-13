@@ -120,6 +120,9 @@ export const coreRoutes: RouteConfigEntry[] = [
         // Planer custom: AI
         route(":workspaceSlug/ai", "./(all)/[workspaceSlug]/(projects)/ai/page.tsx"),
 
+        // Planer custom: Dashboard
+        route(":workspaceSlug/dashboard", "./(all)/[workspaceSlug]/(projects)/dashboard/page.tsx"),
+
         // Archived Projects
         layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/archives/layout.tsx", [
           route(

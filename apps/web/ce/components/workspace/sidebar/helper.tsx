@@ -45,5 +45,7 @@ export const getSidebarNavigationItemIcon = (key: string, className: string = ""
       return <span className={cn("size-4 flex-shrink-0 text-center leading-4", className)}>💬</span>;
     case "ai":
       return <span className={cn("size-4 flex-shrink-0 text-center leading-4", className)}>🤖</span>;
+    case "dashboard":
+      return <span className={cn("size-4 flex-shrink-0 text-center leading-4", className)}>📊</span>;
   }
 };

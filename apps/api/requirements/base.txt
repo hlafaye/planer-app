@@ -72,3 +72,5 @@ drf-spectacular==0.28.0
 # html sanitizer
 nh3==0.2.18
 websockets==15.0.1
+pytesseract==0.3.13
+Pillow==11.2.1

@@ -238,6 +238,13 @@ export const PLANER_SIDEBAR_ITEMS: Record<string, IWorkspaceSidebarNavigationIte
     access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
     highlight: (pathname: string, url: string) => pathname.includes(url),
   },
+  dashboard: {
+    key: "dashboard",
+    labelTranslationKey: "Dashboard",
+    href: `/dashboard/`,
+    access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
+    highlight: (pathname: string, url: string) => pathname.includes(url),
+  },
 };
 
 export const WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
@@ -297,6 +304,7 @@ export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarN
 
 export const WORKSPACE_SIDEBAR_STATIC_PINNED_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["projects"],
+  PLANER_SIDEBAR_ITEMS["dashboard"],
   PLANER_SIDEBAR_ITEMS["chat"],
   PLANER_SIDEBAR_ITEMS["ai"],
 ];

@@ -67,34 +67,63 @@ class PlainerBot:
 
     @staticmethod
     def _handle_ocr(message: Message, args: str):
-        """Extract text from image attachment via llava."""
+        """Extract text from image attachment via Tesseract OCR + Ollama structuring."""
         attachment = message.attachments.first()
         if not attachment:
-            PlainerBot._reply(message, "❌ Aucune pièce jointe trouvée. Uploadez une image puis tapez `@planer ocr`")
+            PlainerBot._reply(message, "Aucune piece jointe. Uploadez une image puis tapez @planer ocr")
             return
 
-        # Call Ollama llava
-        prompt = (
-            "Extract ALL text from this image exactly as written. "
-            "Return only the extracted text, no commentary."
-        )
         try:
-            # Download image from URL (MinIO or local)
+            import pytesseract
+            from PIL import Image
+            from io import BytesIO
+
+            # Download image
             with httpx.Client(timeout=30) as client:
                 img_resp = client.get(attachment.file_url)
-                image_b64 = base64.b64encode(img_resp.content).decode()
 
-            result = PlainerBot._call_ollama(
-                "llava:7b", prompt, images=[image_b64]
-            )
+            image = Image.open(BytesIO(img_resp.content))
+
+            # Tesseract OCR (French + English)
+            raw_text = pytesseract.image_to_string(image, lang="fra+eng")
+
+            if not raw_text.strip():
+                PlainerBot._reply(message, "Aucun texte detecte dans l'image.")
+                return
+
+            # Structure with Ollama
+            try:
+                prompt = (
+                    "Voici du texte extrait par OCR d'un document. "
+                    "Restructure-le proprement, corrige les erreurs OCR evidentes, "
+                    "et identifie le type de document.\n\nTexte brut:\n" + raw_text[:3000]
+                )
+                structured = PlainerBot._call_ollama("llama3.1:8b", prompt)
+                result = structured
+            except Exception:
+                result = raw_text
+
+        except ImportError:
+            # Fallback to llava if tesseract not installed
+            try:
+                with httpx.Client(timeout=30) as client:
+                    img_resp = client.get(attachment.file_url)
+                    image_b64 = base64.b64encode(img_resp.content).decode()
+                result = PlainerBot._call_ollama(
+                    "llava:7b",
+                    "Extract ALL text from this image. Return only the text.",
+                    images=[image_b64],
+                )
+            except Exception as e:
+                result = "Erreur OCR: {}".format(e)
         except Exception as e:
-            result = f"Erreur OCR: {e}"
+            result = "Erreur OCR: {}".format(e)
 
         # Save OCR result
         attachment.ocr_text = result
         attachment.save(update_fields=["ocr_text"])
 
-        PlainerBot._reply(message, f"✅ OCR:\n---\n{result}\n---")
+        PlainerBot._reply(message, "OCR:\n---\n{}\n---".format(result))
 
     @staticmethod
     def _handle_summarize(message: Message, args: str):
@@ -115,9 +144,35 @@ class PlainerBot:
                     project__workspace=message.channel.workspace,
                 ).first()
             if not issue:
-                PlainerBot._reply(message, f"❌ Issue '{issue_key}' non trouvée")
+                PlainerBot._reply(message, "Issue '{}' non trouvee".format(issue_key))
                 return
-            text = f"Titre: {issue.name}\nDescription: {issue.description_stripped or 'N/A'}"
+            # Build rich context for Ollama
+            assignees = ", ".join(
+                [a.display_name for a in issue.assignees.all()]
+            ) if hasattr(issue, "assignees") else "Non assigne"
+            labels = ", ".join(
+                [l.name for l in issue.labels.all()]
+            ) if hasattr(issue, "labels") else "Aucun"
+            state_name = issue.state.name if issue.state else "Non defini"
+            priority_map = {0: "Aucune", 1: "Basse", 2: "Moyenne", 3: "Haute", 4: "Urgente"}
+            priority_str = priority_map.get(issue.priority, "Non definie")
+            text = (
+                "Titre: {}\n"
+                "Description: {}\n"
+                "Statut: {}\n"
+                "Priorite: {}\n"
+                "Assigne a: {}\n"
+                "Labels: {}\n"
+                "Cree le: {}"
+            ).format(
+                issue.name,
+                issue.description_stripped or "Pas de description",
+                state_name,
+                priority_str,
+                assignees or "Non assigne",
+                labels or "Aucun",
+                issue.created_at.strftime("%d/%m/%Y") if issue.created_at else "?",
+            )
         else:
             # Summarize last 50 messages
             msgs = message.channel.messages.filter(
@@ -132,10 +187,16 @@ class PlainerBot:
             PlainerBot._reply(message, "❌ Pas assez de messages à résumer")
             return
 
-        prompt = (
-            "Résume cette conversation en français. "
-            "Liste les points clés et les actions à mener.\n\n" + text[:4000]
-        )
+        if issue_key:
+            prompt = (
+                "Resume cette issue de maniere concise et actionnable en francais. "
+                "Donne: contexte, actions en cours, prochaines etapes.\n\n" + text[:4000]
+            )
+        else:
+            prompt = (
+                "Resume cette conversation en francais. "
+                "Liste les points cles et les actions a mener.\n\n" + text[:4000]
+            )
         summary = PlainerBot._call_ollama("llama3.1:8b", prompt)
         PlainerBot._reply(message, f"📋 Résumé:\n\n{summary}")
 
@@ -193,16 +254,21 @@ class PlainerBot:
         issues = Issue.objects.filter(
             Q(name__icontains=args) | Q(description_stripped__icontains=args),
             project__workspace=message.channel.workspace,
-        )[:5]
+        ).select_related("state").prefetch_related("assignees")[:5]
 
         if not issues:
-            PlainerBot._reply(message, f"🔍 Aucun résultat pour '{args}'")
+            PlainerBot._reply(message, "Aucun resultat pour '{}'".format(args))
             return
 
-        lines = [f"🔍 Résultats ({issues.count()} trouvés):"]
+        lines = ["Resultats ({} trouves):".format(len(issues))]
         for i, issue in enumerate(issues, 1):
             state = issue.state.name if issue.state else "?"
-            lines.append(f"{i}. #{getattr(issue, 'sequence_id', issue.id)}: {issue.name} ({state})")
+            assignees = ", ".join(
+                [a.display_name for a in issue.assignees.all()]
+            ) if hasattr(issue, "assignees") else ""
+            assignee_str = " -- {}".format(assignees) if assignees else " -- Non assigne"
+            seq = getattr(issue, "sequence_id", issue.id)
+            lines.append("{}. #{}: {} ({}){}".format(i, seq, issue.name, state, assignee_str))
 
         PlainerBot._reply(message, "\n".join(lines))
 

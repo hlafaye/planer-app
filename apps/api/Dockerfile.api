@@ -16,7 +16,9 @@ RUN apk add --no-cache --upgrade \
     "libxslt" \
     "xmlsec" \
     "ca-certificates" \
-    "openssl"
+    "openssl" \
+    "tesseract-ocr" \
+    "tesseract-ocr-data-fra"
 
 COPY requirements.txt ./
 COPY requirements ./requirements

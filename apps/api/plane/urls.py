@@ -20,6 +20,7 @@ urlpatterns = [
     path("api/instances/", include("plane.license.urls")),
     path("api/v1/", include("plane.api.urls")),
     path("api/v1/workspaces/<str:workspace_slug>/chat/", include("plane.chat.urls")),
+    path("api/v1/workspaces/<str:workspace_slug>/projects/<uuid:project_id>/dashboard/", include("plane.dashboard.urls")),
     path("auth/", include("plane.authentication.urls")),
     path("", include("plane.web.urls")),
 ]
