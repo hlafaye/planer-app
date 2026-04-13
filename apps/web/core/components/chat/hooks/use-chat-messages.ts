@@ -66,9 +66,10 @@ export function useChatMessages(workspaceSlug: string, channelId: string | null)
   }, [fetchMessages]);
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, files?: File[]) => {
       if (!channelId) return;
       try {
+        // 1. Send the message
         const resp = await fetch(
           `${API_BASE_URL}/api/v1/workspaces/${workspaceSlug}/chat/channels/${channelId}/messages/`,
           {
@@ -81,8 +82,26 @@ export function useChatMessages(workspaceSlug: string, channelId: string | null)
         if (resp.ok) {
           const msg = await resp.json();
           setMessages((prev) => [...prev, msg]);
-          // Wait for bot reply then refetch once
-          setTimeout(fetchMessages, 3000);
+
+          // 2. Upload attachments if any
+          if (files && files.length > 0) {
+            for (const file of files) {
+              const formData = new FormData();
+              formData.append("file", file);
+              await fetch(
+                `${API_BASE_URL}/api/v1/workspaces/${workspaceSlug}/chat/channels/${channelId}/messages/${msg.id}/attachments/`,
+                {
+                  method: "POST",
+                  credentials: "include",
+                  body: formData,
+                }
+              );
+            }
+          }
+
+          // 3. Wait for bot reply then refetch
+          const hasBotCommand = content.includes("@planer");
+          setTimeout(fetchMessages, hasBotCommand ? 5000 : 2000);
         }
       } catch (err) {
         console.error("Failed to send message:", err);
