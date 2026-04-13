@@ -90,8 +90,17 @@ export function ChatPanel({ workspaceSlug }: Props) {
                 <p className="text-xs text-custom-text-400">{activeChannel.description}</p>
               )}
             </div>
-            <div className="ml-auto text-xs text-custom-text-400">
-              {activeChannel.member_count} membre{activeChannel.member_count !== 1 ? "s" : ""}
+            <div className="ml-auto flex items-center gap-3">
+              <button
+                onClick={refresh}
+                className="text-xs text-custom-text-400 hover:text-[#BF5D48] transition-colors"
+                title="Rafraîchir les messages"
+              >
+                🔄 Rafraîchir
+              </button>
+              <span className="text-xs text-custom-text-400">
+                {activeChannel.member_count} membre{activeChannel.member_count !== 1 ? "s" : ""}
+              </span>
             </div>
           </div>
         )}
