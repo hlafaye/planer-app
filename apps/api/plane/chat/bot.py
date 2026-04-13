@@ -272,11 +272,18 @@ class PlainerBot:
 
     @staticmethod
     def _reply(parent_message: Message, content: str):
-        """Post bot reply as a threaded message."""
-        Message.objects.create(
+        """Post bot reply as a threaded message + broadcast via WebSocket."""
+        msg = Message.objects.create(
             channel=parent_message.channel,
             actor=None,
             content=content,
             message_type="bot",
             parent=parent_message,
+        )
+        # Broadcast via Redis → WebSocket
+        from plane.chat.broadcast import broadcast_message
+        from plane.chat.serializers import MessageSerializer
+        broadcast_message(
+            str(parent_message.channel.id),
+            MessageSerializer(msg).data,
         )

@@ -97,6 +97,10 @@ class MessageViewSet(ChatAuthMixin, ModelViewSet):
         channel = Channel.objects.get(id=self.kwargs["channel_id"])
         message = serializer.save(actor=self.request.user, channel=channel)
 
+        # Broadcast via Redis → WebSocket
+        from plane.chat.broadcast import broadcast_message
+        broadcast_message(str(channel.id), MessageSerializer(message).data)
+
         # Check for bot commands
         if "@planer" in message.content:
             from plane.chat.bot import PlainerBot

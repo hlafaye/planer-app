@@ -110,5 +110,14 @@ export function useChatMessages(workspaceSlug: string, channelId: string | null)
     [workspaceSlug, channelId, fetchMessages]
   );
 
-  return { messages, loading, sendMessage, refresh: fetchMessages };
+  const appendMessage = useCallback((msg: ChatMessage) => {
+    setMessages((prev) => {
+      // Avoid duplicates
+      if (prev.some((m) => m.id === msg.id)) return prev;
+      lastMsgIdRef.current = msg.id;
+      return [...prev, msg];
+    });
+  }, []);
+
+  return { messages, loading, sendMessage, refresh: fetchMessages, appendMessage };
 }
