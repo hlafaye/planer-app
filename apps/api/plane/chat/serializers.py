@@ -40,7 +40,7 @@ class MessageSerializer(serializers.ModelSerializer):
             "issue", "attachments", "reply_count",
             "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "actor", "is_edited", "edited_at", "created_at"]
+        read_only_fields = ["id", "channel", "actor", "is_edited", "edited_at", "created_at"]
 
     def get_reply_count(self, obj):
         return obj.replies.count()
