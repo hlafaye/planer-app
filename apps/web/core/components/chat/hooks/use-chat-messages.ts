@@ -31,23 +31,25 @@ export type ChatMessage = {
 export function useChatMessages(workspaceSlug: string, channelId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const lastCountRef = useRef(0);
+  const lastMsgIdRef = useRef("");
+  const initialLoadDone = useRef(false);
 
   const fetchMessages = useCallback(async () => {
     if (!channelId) return;
-    setLoading(true);
+    // Only show loading spinner on initial load
+    if (!initialLoadDone.current) setLoading(true);
     try {
-      // Fetch ALL messages (including replies) — no parent_id filter
       const resp = await fetch(
         `${API_BASE_URL}/api/v1/workspaces/${workspaceSlug}/chat/channels/${channelId}/messages/?all=true`,
         { credentials: "include" }
       );
       if (resp.ok) {
         const data = await resp.json();
-        const msgs = Array.isArray(data) ? data : data.results || [];
-        // Only update state if message count changed (avoid unnecessary re-renders)
-        if (msgs.length !== lastCountRef.current) {
-          lastCountRef.current = msgs.length;
+        const msgs: ChatMessage[] = Array.isArray(data) ? data : data.results || [];
+        const lastId = msgs.length > 0 ? msgs[msgs.length - 1].id : "";
+        // Only update state if there are actually new messages
+        if (lastId !== lastMsgIdRef.current) {
+          lastMsgIdRef.current = lastId;
           setMessages(msgs);
         }
       }
@@ -55,6 +57,7 @@ export function useChatMessages(workspaceSlug: string, channelId: string | null)
       console.error("Failed to fetch messages:", err);
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
     }
   }, [workspaceSlug, channelId]);
 
