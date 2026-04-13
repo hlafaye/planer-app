@@ -80,6 +80,10 @@ class MessageViewSet(ChatAuthMixin, ModelViewSet):
             "actor", "parent"
         ).prefetch_related("attachments", "replies")
 
+        # ?all=true → return all messages (including replies inline)
+        if self.request.query_params.get("all") == "true":
+            return qs.order_by("created_at")
+
         # Filter top-level or threaded
         parent_id = self.request.query_params.get("parent_id")
         if parent_id == "null" or parent_id is None:

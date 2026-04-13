@@ -35,10 +35,10 @@ export function ChatPanel({ workspaceSlug }: Props) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Poll for new messages every 5s
+  // Poll for new messages every 15s (gentle, avoids page flicker)
   useEffect(() => {
     if (!activeChannelId) return;
-    const interval = setInterval(refresh, 5000);
+    const interval = setInterval(refresh, 15000);
     return () => clearInterval(interval);
   }, [activeChannelId, refresh]);
 

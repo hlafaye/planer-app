@@ -1,5 +1,5 @@
 // Planer custom: Chat messages hook
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { API_BASE_URL } from "@plane/constants";
 
 export type ChatMessage = {
@@ -31,18 +31,25 @@ export type ChatMessage = {
 export function useChatMessages(workspaceSlug: string, channelId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const lastCountRef = useRef(0);
 
   const fetchMessages = useCallback(async () => {
     if (!channelId) return;
     setLoading(true);
     try {
+      // Fetch ALL messages (including replies) — no parent_id filter
       const resp = await fetch(
-        `${API_BASE_URL}/api/v1/workspaces/${workspaceSlug}/chat/channels/${channelId}/messages/`,
+        `${API_BASE_URL}/api/v1/workspaces/${workspaceSlug}/chat/channels/${channelId}/messages/?all=true`,
         { credentials: "include" }
       );
       if (resp.ok) {
         const data = await resp.json();
-        setMessages(Array.isArray(data) ? data : data.results || []);
+        const msgs = Array.isArray(data) ? data : data.results || [];
+        // Only update state if message count changed (avoid unnecessary re-renders)
+        if (msgs.length !== lastCountRef.current) {
+          lastCountRef.current = msgs.length;
+          setMessages(msgs);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch messages:", err);
@@ -71,8 +78,8 @@ export function useChatMessages(workspaceSlug: string, channelId: string | null)
         if (resp.ok) {
           const msg = await resp.json();
           setMessages((prev) => [...prev, msg]);
-          // Refetch to get bot replies
-          setTimeout(fetchMessages, 2000);
+          // Wait for bot reply then refetch once
+          setTimeout(fetchMessages, 3000);
         }
       } catch (err) {
         console.error("Failed to send message:", err);
