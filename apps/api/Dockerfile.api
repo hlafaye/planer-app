@@ -18,7 +18,8 @@ RUN apk add --no-cache --upgrade \
     "ca-certificates" \
     "openssl" \
     "tesseract-ocr" \
-    "tesseract-ocr-data-fra"
+    "tesseract-ocr-data-fra" \
+    "poppler-utils"
 
 COPY requirements.txt ./
 COPY requirements ./requirements

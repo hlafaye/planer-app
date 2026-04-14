@@ -2,6 +2,7 @@
 from django.urls import path
 from plane.devis.views import (
     DevisViewSet, DevisActionView, DevisStatsView, ValidationRuleViewSet,
+    ExtractFromPDFView, PreviewValidationView,
 )
 
 urlpatterns = [
@@ -11,4 +12,6 @@ urlpatterns = [
     path("<uuid:devis_id>/action/", DevisActionView.as_view(), name="devis-action"),
     path("validation-rules/", ValidationRuleViewSet.as_view({"get": "list", "post": "create"}), name="validation-rules"),
     path("validation-rules/<uuid:pk>/", ValidationRuleViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="validation-rule-detail"),
+    path("extract-from-pdf/", ExtractFromPDFView.as_view(), name="devis-extract-pdf"),
+    path("preview-validation/", PreviewValidationView.as_view(), name="devis-preview-validation"),
 ]

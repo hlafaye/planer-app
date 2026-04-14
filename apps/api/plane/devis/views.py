@@ -1,5 +1,8 @@
 # Planer custom: Module Devis API views
+from decimal import Decimal
+
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -155,4 +158,74 @@ class DevisStatsView(DevisAuthMixin, APIView):
             "by_statut": by_statut,
             "total_approuve_ht": float(total_ht),
             "total_approuve_ttc": float(total_ttc),
+        })
+
+
+class ExtractFromPDFView(DevisAuthMixin, APIView):
+    """Extract devis fields from uploaded PDF via OCR + Ollama AI."""
+    parser_classes = [MultiPartParser]
+
+    def post(self, request, workspace_slug, project_id):
+        if "file" not in request.FILES:
+            return Response({"error": "Aucun fichier"}, status=status.HTTP_400_BAD_REQUEST)
+
+        pdf_file = request.FILES["file"]
+        if not pdf_file.name.lower().endswith(".pdf"):
+            return Response({"error": "PDF requis"}, status=status.HTTP_400_BAD_REQUEST)
+
+        from plane.devis.services.pdf_extractor import extract_devis_from_pdf
+
+        pdf_bytes = pdf_file.read()
+        result = extract_devis_from_pdf(pdf_bytes)
+
+        if "error" in result:
+            return Response(result, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+        return Response(result)
+
+
+class PreviewValidationView(DevisAuthMixin, APIView):
+    """Preview which validation chain will be triggered for a given amount + type."""
+
+    def post(self, request, workspace_slug, project_id):
+        type_devis = request.data.get("type_devis")
+        montant_ht = request.data.get("montant_ht")
+
+        if not type_devis or montant_ht is None:
+            return Response(
+                {"error": "type_devis et montant_ht requis"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        montant = Decimal(str(montant_ht))
+
+        rules = ValidationRule.objects.filter(
+            project_id=project_id, type_devis=type_devis
+        ).order_by("order")
+
+        applicable_rule = None
+        for rule in rules:
+            if rule.max_amount is None or montant <= rule.max_amount:
+                applicable_rule = rule
+                break
+
+        if not applicable_rule:
+            return Response({
+                "mode": "none",
+                "message": "Aucune regle applicable",
+                "validators": [],
+            })
+
+        validators = [
+            {
+                "id": str(u.id),
+                "name": u.display_name or u.email,
+            }
+            for u in applicable_rule.validators.all()
+        ]
+
+        return Response({
+            "mode": applicable_rule.mode,
+            "validators": validators,
+            "seuil_franchi": float(applicable_rule.max_amount) if applicable_rule.max_amount else None,
         })

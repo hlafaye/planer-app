@@ -181,12 +181,12 @@ export default function DevisPage() {
             <p className="text-xs text-custom-text-400 mt-0.5">Suivi des devis, validation et commandes</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowNewForm(!showNewForm)}
-              className="px-4 py-2 rounded-lg bg-[#BF5D48] text-white text-sm font-medium hover:bg-[#a84d3b] transition-colors shadow-sm"
+            <a
+              href={`/${workspaceSlug}/devis/nouveau`}
+              className="px-4 py-2 rounded-lg bg-[#BF5D48] text-white text-sm font-medium hover:bg-[#a84d3b] transition-colors shadow-sm no-underline"
             >
               + Nouveau devis
-            </button>
+            </a>
           </div>
         </div>
 
