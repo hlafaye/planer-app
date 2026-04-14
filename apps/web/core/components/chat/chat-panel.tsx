@@ -75,6 +75,74 @@ function ChannelGroup({
   );
 }
 
+function ChannelItem({ ch, activeChannelId, onSelect, indent = false }: { ch: ChatChannel; activeChannelId: string | null; onSelect: (id: string) => void; indent?: boolean }) {
+  return (
+    <button
+      onClick={() => onSelect(ch.id)}
+      className={`w-full text-left py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors ${indent ? "px-3 ml-4" : "px-3 ml-2"} ${
+        ch.id === activeChannelId
+          ? "bg-[#BF5D48]/10 text-[#BF5D48] font-medium"
+          : "text-custom-text-200 hover:bg-custom-background-90"
+      }`}
+    >
+      <span className="truncate">#{ch.name}</span>
+      {ch.unread_count > 0 && (
+        <span className="ml-auto flex-shrink-0 rounded-full bg-[#BF5D48] px-1.5 py-0.5 text-xs text-white font-medium">{ch.unread_count}</span>
+      )}
+    </button>
+  );
+}
+
+function ProjectSection({ name, mainChannels, moduleChannels, activeChannelId, onSelect }: {
+  name: string;
+  mainChannels: ChatChannel[];
+  moduleChannels: ChatChannel[];
+  activeChannelId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [modulesCollapsed, setModulesCollapsed] = useState(false);
+
+  return (
+    <div className="mb-2">
+      {/* Project header — collapsible */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-custom-text-400 hover:text-custom-text-200 uppercase tracking-wider"
+      >
+        <span className={`text-[10px] transition-transform ${collapsed ? "" : "rotate-90"}`}>▶</span>
+        <span>📁 {name}</span>
+      </button>
+
+      {!collapsed && (
+        <div>
+          {/* Main project channel */}
+          {mainChannels.map((ch) => (
+            <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} onSelect={onSelect} />
+          ))}
+
+          {/* Modules — nested with indentation + left border */}
+          {moduleChannels.length > 0 && (
+            <div className="ml-3 pl-2 border-l border-custom-border-100/50">
+              <button
+                onClick={() => setModulesCollapsed(!modulesCollapsed)}
+                className="w-full flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-custom-text-400 hover:text-custom-text-300"
+              >
+                <span className={`text-[9px] transition-transform ${modulesCollapsed ? "" : "rotate-90"}`}>▶</span>
+                <span>📦 Modules</span>
+                <span className="ml-auto text-custom-text-400">{moduleChannels.length}</span>
+              </button>
+              {!modulesCollapsed && moduleChannels.map((ch) => (
+                <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} onSelect={onSelect} indent />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ChatPanel({ workspaceSlug }: Props) {
   const { channels, loading: channelsLoading } = useChatChannels(workspaceSlug);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -187,22 +255,14 @@ export function ChatPanel({ workspaceSlug }: Props) {
 
               {/* Project-grouped channels */}
               {projectGroups.map(([projId, group]) => (
-                <div key={projId} className="mb-1">
-                  <div className="px-3 py-1.5 text-xs font-semibold text-custom-text-400 uppercase tracking-wider flex items-center gap-1">
-                    📁 {group.name || "Projet"}
-                  </div>
-                  {/* Project main channel */}
-                  {group.main.map((ch) => (
-                    <button key={ch.id} onClick={() => setActiveChannelId(ch.id)} className={`w-full text-left px-3 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors ml-2 ${ch.id === activeChannelId ? "bg-[#BF5D48]/10 text-[#BF5D48] font-medium" : "text-custom-text-200 hover:bg-custom-background-90"}`}>
-                      <span className="truncate">#{ch.name}</span>
-                      {ch.unread_count > 0 && <span className="ml-auto rounded-full bg-[#BF5D48] px-1.5 py-0.5 text-xs text-white font-medium">{ch.unread_count}</span>}
-                    </button>
-                  ))}
-                  {/* Module channels */}
-                  {group.modules.length > 0 && (
-                    <ChannelGroup type="module" channels={group.modules} activeChannelId={activeChannelId} onSelect={setActiveChannelId} />
-                  )}
-                </div>
+                <ProjectSection
+                  key={projId}
+                  name={group.name || "Projet"}
+                  mainChannels={group.main}
+                  moduleChannels={group.modules}
+                  activeChannelId={activeChannelId}
+                  onSelect={setActiveChannelId}
+                />
               ))}
             </>
           )}

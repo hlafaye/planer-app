@@ -61,19 +61,39 @@ class ProjectDashboardView(DashboardAuthMixin, APIView):
                 "assignee": assignees or "Non assigne",
             })
 
-        # Module progress
+        # Module progress — segmented (same format as executive)
         modules_data = []
         for mod in Module.objects.filter(project=project):
             mod_issues = issues.filter(issue_module__module=mod)
             mod_total = mod_issues.count()
             mod_done = mod_issues.filter(state__group="completed").count()
+            mod_in_progress = mod_issues.filter(
+                state__group="started"
+            ).exclude(target_date__lt=now.date()).count()
+            mod_overdue = mod_issues.filter(
+                target_date__lt=now.date()
+            ).exclude(state__group="completed").count()
+            mod_backlog = max(0, mod_total - mod_done - mod_in_progress - mod_overdue)
             pct = round(mod_done / mod_total * 100) if mod_total else 0
+
+            if mod_overdue > 3 or (mod_total > 0 and mod_backlog / mod_total > 0.8):
+                color = "red"
+            elif mod_overdue > 0 or pct < 30:
+                color = "orange"
+            else:
+                color = "green"
+
             modules_data.append({
                 "id": str(mod.id),
                 "name": mod.name,
                 "total": mod_total,
+                "completed": mod_done,
+                "in_progress": mod_in_progress,
+                "overdue": mod_overdue,
+                "backlog": mod_backlog,
                 "done": mod_done,
                 "pct": pct,
+                "color": color,
             })
         modules_data.sort(key=lambda m: m["total"], reverse=True)
 
