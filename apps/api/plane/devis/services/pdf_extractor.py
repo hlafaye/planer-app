@@ -64,29 +64,20 @@ def extract_devis_from_pdf(pdf_bytes):
         }
 
     # Step 2: Ollama structured extraction
+    # NOTE: use string concat, NOT .format() — the JSON schema has { } that would be
+    # interpreted as format placeholders
     prompt = (
         "Tu es un assistant qui extrait les informations d'un devis commercial francais.\n"
-        "Retourne UNIQUEMENT un JSON valide selon ce schema exact:\n\n"
-        "{\n"
-        '  "nom": "string (description courte, max 80 chars)",\n'
-        '  "fournisseur_nom": "string (nom de l\'entreprise emettrice)",\n'
-        '  "numero_devis": "string (reference du devis) ou null",\n'
-        '  "date_devis": "YYYY-MM-DD ou null",\n'
-        '  "montant_ht": number,\n'
-        '  "tva_taux": number (ex: 20.0),\n'
-        '  "tva_montant": number,\n'
-        '  "montant_ttc": number,\n'
-        '  "date_livraison_prevue": "YYYY-MM-DD ou null",\n'
-        '  "categorie": "gros_materiel|petit_materiel|mobilier|it|signaletique|agencement|services|autre",\n'
-        '  "type_devis_suggere": "fournisseur|sous_traitant|personnel|client",\n'
-        '  "description": "string (2-3 phrases descriptives)"\n'
-        "}\n\n"
-        "Regles:\n"
-        "- Si TTC non explicite mais HT et taux TVA connus: calculer TTC = HT x (1 + taux/100)\n"
-        "- Si categorie = location/nettoyage/maintenance: type_devis_suggere = sous_traitant\n"
-        "- Si categorie = equipement/mobilier: type_devis_suggere = fournisseur\n"
-        "- Dates au format YYYY-MM-DD strict\n\n"
-        "Texte OCR du devis:\n---\n{}\n---\n\nJSON:".format(text[:4500])
+        "Retourne UNIQUEMENT un JSON valide avec ces champs:\n"
+        "nom (string max 80 chars), fournisseur_nom (string), numero_devis (string ou null), "
+        "date_devis (YYYY-MM-DD ou null), montant_ht (number), tva_taux (number ex 20.0), "
+        "tva_montant (number), montant_ttc (number), date_livraison_prevue (YYYY-MM-DD ou null), "
+        "categorie (gros_materiel|petit_materiel|mobilier|it|signaletique|agencement|services|autre), "
+        "type_devis_suggere (fournisseur|sous_traitant|personnel|client), "
+        "description (string 2-3 phrases).\n\n"
+        "Regles: Si TTC non explicite calculer TTC = HT x (1 + taux/100). "
+        "Dates au format YYYY-MM-DD strict.\n\n"
+        "Texte OCR du devis:\n---\n" + text[:4500] + "\n---\n\nJSON:"
     )
 
     try:
