@@ -367,7 +367,7 @@ export default function DevisPage() {
                 </td></tr>
               ) : (
                 filteredDevis.map((d) => (
-                  <tr key={d.id} className="border-b border-custom-border-100 hover:bg-custom-background-90/30 cursor-pointer transition-colors">
+                  <tr key={d.id} onClick={() => window.location.href = `/${workspaceSlug}/devis/${d.id}`} className="border-b border-custom-border-100 hover:bg-custom-background-90/30 cursor-pointer transition-colors">
                     <td className="px-4 py-3 font-mono text-xs text-[#BF5D48] font-medium">{d.reference}</td>
                     <td className="px-4 py-3">
                       <div className="text-sm text-custom-text-100 font-medium">{d.nom}</div>
