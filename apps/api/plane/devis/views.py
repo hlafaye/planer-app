@@ -188,7 +188,16 @@ class ExtractFromPDFView(DevisAuthMixin, APIView):
                 logger.warning("PDF extraction error: %s", result["error"])
                 return Response(result, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
-            logger.info("PDF extraction OK: %s", result.get("data", {}).get("nom", "?"))
+            # Post-extraction validation: if "nom" looks like a company name, use description
+            data = result.get("data", {})
+            nom = data.get("nom", "")
+            if nom and nom.isupper() and len(nom.split()) <= 3:
+                desc = data.get("description", "")
+                if desc:
+                    data["nom"] = desc[:80]
+                    logger.info("Corrected nom from company name to description")
+
+            logger.info("PDF extraction OK: %s", data.get("nom", "?"))
             return Response(result)
         except Exception as e:
             logger.error("PDF extraction crash: %s", e, exc_info=True)

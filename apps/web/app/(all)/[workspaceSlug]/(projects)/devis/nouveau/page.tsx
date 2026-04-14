@@ -127,8 +127,13 @@ export default function NouveauDevisPage() {
           if (d.date_livraison_prevue) { updateField("date_livraison_prevue", d.date_livraison_prevue); filled.add("date_livraison_prevue"); }
           if (d.categorie) { updateField("categorie", d.categorie); filled.add("categorie"); }
           if (d.description) { updateField("description", d.description); filled.add("description"); }
+          // Auto-select type based on AI suggestion
+          if (d.type_devis_suggere) { updateField("type_devis", d.type_devis_suggere); filled.add("type_devis"); }
           setAiFields(filled);
         }
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        alert("Extraction echouee: " + (err.error || "erreur inconnue"));
       }
     } catch (err) {
       console.error("PDF extraction error:", err);

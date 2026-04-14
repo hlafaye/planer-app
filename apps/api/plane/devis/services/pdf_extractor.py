@@ -64,19 +64,29 @@ def extract_devis_from_pdf(pdf_bytes):
         }
 
     # Step 2: Ollama structured extraction
-    # NOTE: use string concat, NOT .format() — the JSON schema has { } that would be
-    # interpreted as format placeholders
+    # NOTE: use string concat, NOT .format() — curly braces would be misinterpreted
     prompt = (
-        "Tu es un assistant qui extrait les informations d'un devis commercial francais.\n"
+        "Tu es un assistant qui extrait les informations d'un devis commercial francais.\n\n"
+        "ANATOMIE D'UN DEVIS:\n"
+        "- L'EMETTEUR (= FOURNISSEUR): l'entreprise qui VEND, en haut du document avec ses coordonnees (SIRET, TVA, adresse). C'est elle qui emet le devis.\n"
+        "- Le DESTINATAIRE (= CLIENT): l'entreprise qui RECOIT et paiera le devis. Identifiee par 'A:', 'Client:', 'Facturation:'.\n\n"
+        "REGLES CRITIQUES:\n"
+        "1. fournisseur_nom = EMETTEUR du devis (en-tete, avec SIRET) — JAMAIS le destinataire\n"
+        "2. client_nom = DESTINATAIRE du devis (zone client/facturation) ou null\n"
+        "3. nom = OBJET de la prestation (PAS un nom d'entreprise). Ex: 'Location linge mensuelle', 'Four mixte Rational'\n"
+        "4. Si prestation = nettoyage/location/maintenance/service: type_devis_suggere = sous_traitant\n"
+        "5. Si achat equipement/mobilier: type_devis_suggere = fournisseur\n"
+        "6. Si TTC non explicite: calculer TTC = HT x (1 + taux/100)\n"
+        "7. Dates au format YYYY-MM-DD\n\n"
         "Retourne UNIQUEMENT un JSON valide avec ces champs:\n"
-        "nom (string max 80 chars), fournisseur_nom (string), numero_devis (string ou null), "
-        "date_devis (YYYY-MM-DD ou null), montant_ht (number), tva_taux (number ex 20.0), "
-        "tva_montant (number), montant_ttc (number), date_livraison_prevue (YYYY-MM-DD ou null), "
+        "nom (string description courte de la prestation max 80 chars — PAS un nom d'entreprise), "
+        "fournisseur_nom (string — l'EMETTEUR), client_nom (string ou null — le DESTINATAIRE), "
+        "numero_devis (string ou null), date_devis (YYYY-MM-DD ou null), "
+        "montant_ht (number), tva_taux (number), tva_montant (number), montant_ttc (number), "
+        "date_livraison_prevue (YYYY-MM-DD ou null), "
         "categorie (gros_materiel|petit_materiel|mobilier|it|signaletique|agencement|services|autre), "
         "type_devis_suggere (fournisseur|sous_traitant|personnel|client), "
         "description (string 2-3 phrases).\n\n"
-        "Regles: Si TTC non explicite calculer TTC = HT x (1 + taux/100). "
-        "Dates au format YYYY-MM-DD strict.\n\n"
         "Texte OCR du devis:\n---\n" + text[:4500] + "\n---\n\nJSON:"
     )
 
