@@ -49,5 +49,7 @@ export const getSidebarNavigationItemIcon = (key: string, className: string = ""
       return <span className={cn("size-4 flex-shrink-0 text-center leading-4", className)}>📊</span>;
     case "devis":
       return <span className={cn("size-4 flex-shrink-0 text-center leading-4", className)}>📄</span>;
+    case "configurateur":
+      return <span className={cn("size-4 flex-shrink-0 text-center leading-4", className)}>🎯</span>;
   }
 };

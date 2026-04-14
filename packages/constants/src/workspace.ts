@@ -252,6 +252,13 @@ export const PLANER_SIDEBAR_ITEMS: Record<string, IWorkspaceSidebarNavigationIte
     access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
     highlight: (pathname: string, url: string) => pathname.includes(url),
   },
+  configurateur: {
+    key: "configurateur",
+    labelTranslationKey: "Configurateur AO",
+    href: `/configurateur/`,
+    access: [EUserWorkspaceRoles.ADMIN],
+    highlight: (pathname: string, url: string) => pathname.includes(url),
+  },
 };
 
 export const WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
@@ -313,6 +320,7 @@ export const WORKSPACE_SIDEBAR_STATIC_PINNED_NAVIGATION_ITEMS_LINKS: IWorkspaceS
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["projects"],
   PLANER_SIDEBAR_ITEMS["dashboard"],
   PLANER_SIDEBAR_ITEMS["devis"],
+  PLANER_SIDEBAR_ITEMS["configurateur"],
   PLANER_SIDEBAR_ITEMS["chat"],
   PLANER_SIDEBAR_ITEMS["ai"],
 ];
