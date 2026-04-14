@@ -181,6 +181,9 @@ export default function DevisPage() {
             <p className="text-xs text-custom-text-400 mt-0.5">Suivi des devis, validation et commandes</p>
           </div>
           <div className="flex items-center gap-2">
+            <a href={`/${workspaceSlug}/devis/regles`} className="px-3 py-2 rounded-lg border border-custom-border-200 text-xs text-custom-text-300 hover:bg-custom-background-90 no-underline">
+              ⚙️ Règles
+            </a>
             <a
               href={`/${workspaceSlug}/devis/nouveau`}
               className="px-4 py-2 rounded-lg bg-[#BF5D48] text-white text-sm font-medium hover:bg-[#a84d3b] transition-colors shadow-sm no-underline"

@@ -126,6 +126,7 @@ export const coreRoutes: RouteConfigEntry[] = [
         // Planer custom: Devis
         route(":workspaceSlug/devis", "./(all)/[workspaceSlug]/(projects)/devis/page.tsx"),
         route(":workspaceSlug/devis/nouveau", "./(all)/[workspaceSlug]/(projects)/devis/nouveau/page.tsx"),
+        route(":workspaceSlug/devis/regles", "./(all)/[workspaceSlug]/(projects)/devis/regles/page.tsx"),
 
         // Archived Projects
         layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/archives/layout.tsx", [
