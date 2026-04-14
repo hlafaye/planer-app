@@ -115,36 +115,73 @@ export default function DashboardPage() {
         <div ref={selectorRef} className="relative inline-block">
           <button
             onClick={() => setSelectorOpen(!selectorOpen)}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl border border-custom-border-200 bg-custom-background-100 hover:border-[#BF5D48] transition-colors shadow-sm min-w-[320px]"
+            className="flex items-center gap-3 px-5 py-3 rounded-xl border-[1.5px] border-[#3a3633] hover:border-[#BF5D48] transition-colors shadow-sm min-w-[320px]"
+            style={{ backgroundColor: "#242220" }}
           >
-            <span className="text-2xl">🎯</span>
+            <span className="text-2xl">{selectedProjectId === "all" ? "🌐" : "🎯"}</span>
             <div className="text-left">
-              <div className="text-[10px] uppercase tracking-widest text-custom-text-400">Projet affiché</div>
-              <div className="text-sm font-semibold text-custom-text-100">
-                {selectedProject?.name || "Sélectionner..."}
+              <div className="text-[10px] uppercase tracking-widest" style={{ color: "#8a7f76" }}>Projet affiché</div>
+              <div className="text-sm font-semibold" style={{ color: "#e8e0d8" }}>
+                {selectedProjectId === "all" ? "Tous les projets" : selectedProject?.name || "Sélectionner..."}
               </div>
             </div>
-            <span className={`ml-auto text-custom-text-400 transition-transform ${selectorOpen ? "rotate-180" : ""}`}>▾</span>
+            <span className={`ml-auto transition-transform ${selectorOpen ? "rotate-180" : ""}`} style={{ color: "#8a7f76" }}>▾</span>
           </button>
 
           {selectorOpen && (
-            <div className="absolute top-full left-0 mt-1 min-w-[400px] rounded-xl border border-custom-border-200 bg-custom-background-100 shadow-xl z-50 py-1 overflow-hidden">
-              <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-custom-text-400">
+            <div
+              className="absolute top-full left-0 mt-1.5 min-w-[400px] rounded-xl overflow-hidden"
+              style={{
+                backgroundColor: "#1f1d1b",
+                border: "1px solid #3a3633",
+                boxShadow: "0 10px 30px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)",
+                zIndex: 1000,
+                padding: "6px",
+              }}
+            >
+              {/* All projects option */}
+              <button
+                onClick={() => { setSelectedProjectId("all"); setSelectorOpen(false); }}
+                className="w-full text-left px-4 py-2.5 rounded-md flex items-center gap-2.5 transition-colors"
+                style={{
+                  color: selectedProjectId === "all" ? "#BF5D48" : "#e8e0d8",
+                  backgroundColor: selectedProjectId === "all" ? "rgba(191,93,72,0.2)" : "transparent",
+                  fontWeight: selectedProjectId === "all" ? 600 : 400,
+                }}
+                onMouseEnter={(e) => { if (selectedProjectId !== "all") (e.target as HTMLElement).style.backgroundColor = "rgba(191,93,72,0.1)"; }}
+                onMouseLeave={(e) => { if (selectedProjectId !== "all") (e.target as HTMLElement).style.backgroundColor = "transparent"; }}
+              >
+                <span>🌐</span>
+                <span className="text-sm">Tous les projets (vue agrégée)</span>
+              </button>
+
+              {/* Divider */}
+              <div className="my-1 mx-2" style={{ height: "1px", backgroundColor: "#3a3633" }} />
+
+              {/* Section title */}
+              <div className="px-4 py-1.5 text-[10px] uppercase tracking-widest" style={{ color: "#6b6560" }}>
                 Mes projets
               </div>
+
+              {/* Project list */}
               {projects.map((project) => (
                 <button
                   key={project.id}
                   onClick={() => { setSelectedProjectId(project.id); setSelectorOpen(false); }}
-                  className={`w-full text-left px-4 py-2.5 flex items-center justify-between hover:bg-[#BF5D48]/5 transition-colors ${
-                    project.id === selectedProjectId ? "bg-[#BF5D48]/10 text-[#BF5D48]" : "text-custom-text-200"
-                  }`}
+                  className="w-full text-left px-4 py-2.5 rounded-md flex items-center justify-between transition-colors"
+                  style={{
+                    color: project.id === selectedProjectId ? "#BF5D48" : "#e8e0d8",
+                    backgroundColor: project.id === selectedProjectId ? "rgba(191,93,72,0.2)" : "transparent",
+                    fontWeight: project.id === selectedProjectId ? 600 : 400,
+                  }}
+                  onMouseEnter={(e) => { if (project.id !== selectedProjectId) (e.target as HTMLElement).style.backgroundColor = "rgba(191,93,72,0.1)"; }}
+                  onMouseLeave={(e) => { if (project.id !== selectedProjectId) (e.target as HTMLElement).style.backgroundColor = "transparent"; }}
                 >
                   <div className="flex items-center gap-2.5">
                     <span>🎯</span>
-                    <span className="text-sm font-medium">{project.name}</span>
+                    <span className="text-sm">{project.name}</span>
                   </div>
-                  <span className="text-xs text-custom-text-400">{project.identifier}</span>
+                  <span className="text-xs" style={{ color: "#6b6560" }}>{project.identifier}</span>
                 </button>
               ))}
             </div>
