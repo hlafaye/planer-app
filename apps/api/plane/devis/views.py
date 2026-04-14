@@ -166,22 +166,33 @@ class ExtractFromPDFView(DevisAuthMixin, APIView):
     parser_classes = [MultiPartParser]
 
     def post(self, request, workspace_slug, project_id):
-        if "file" not in request.FILES:
-            return Response({"error": "Aucun fichier"}, status=status.HTTP_400_BAD_REQUEST)
+        import logging
+        logger = logging.getLogger("plane.devis.extract")
 
-        pdf_file = request.FILES["file"]
-        if not pdf_file.name.lower().endswith(".pdf"):
-            return Response({"error": "PDF requis"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            if "file" not in request.FILES:
+                return Response({"error": "Aucun fichier"}, status=status.HTTP_400_BAD_REQUEST)
 
-        from plane.devis.services.pdf_extractor import extract_devis_from_pdf
+            pdf_file = request.FILES["file"]
+            logger.info("PDF upload: %s (%d bytes)", pdf_file.name, pdf_file.size)
 
-        pdf_bytes = pdf_file.read()
-        result = extract_devis_from_pdf(pdf_bytes)
+            if not pdf_file.name.lower().endswith(".pdf"):
+                return Response({"error": "PDF requis"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if "error" in result:
-            return Response(result, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            from plane.devis.services.pdf_extractor import extract_devis_from_pdf
 
-        return Response(result)
+            pdf_bytes = pdf_file.read()
+            result = extract_devis_from_pdf(pdf_bytes)
+
+            if "error" in result:
+                logger.warning("PDF extraction error: %s", result["error"])
+                return Response(result, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+            logger.info("PDF extraction OK: %s", result.get("data", {}).get("nom", "?"))
+            return Response(result)
+        except Exception as e:
+            logger.error("PDF extraction crash: %s", e, exc_info=True)
+            return Response({"error": "Erreur serveur: {}".format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class PreviewValidationView(DevisAuthMixin, APIView):
