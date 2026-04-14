@@ -189,9 +189,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Dashboard panel */}
+      {/* Dashboard panel — "all" resolves to first project for now */}
       <div className="flex-1 min-h-0">
-        <DashboardPanel workspaceSlug={workspaceSlug} projectId={selectedProjectId} />
+        <DashboardPanel
+          workspaceSlug={workspaceSlug}
+          projectId={selectedProjectId === "all" ? projects[0]?.id || "" : selectedProjectId}
+        />
       </div>
     </div>
   );
