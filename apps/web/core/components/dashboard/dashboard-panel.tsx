@@ -89,7 +89,14 @@ export function DashboardPanel({ workspaceSlug, projectId }: { workspaceSlug: st
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  const switchTab = useCallback((tab: DashboardTab) => {
+    setData(null); // Reset data when switching tabs
+    setActiveTab(tab);
+  }, []);
+
   const fetchDashboard = useCallback(async () => {
+    // Skip fetch for placeholder tabs
+    if (activeTab === "budget") return;
     setLoading(true);
     try {
       const resp = await fetch(
@@ -118,7 +125,7 @@ export function DashboardPanel({ workspaceSlug, projectId }: { workspaceSlug: st
         {TABS.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => switchTab(tab.key)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
               activeTab === tab.key
                 ? "bg-[#BF5D48] text-white shadow-sm"
