@@ -98,13 +98,40 @@ def extract_devis_from_pdf(pdf_bytes):
                 "prompt": prompt,
                 "stream": False,
                 "format": "json",
-                "options": {"temperature": 0.1, "num_predict": 800},
+                "options": {"temperature": 0.1, "num_predict": 1500},
             },
-            timeout=90,
+            timeout=120,
         )
         response.raise_for_status()
         data = response.json()
-        extracted = json.loads(data["response"])
+        raw_response = data.get("response", "")
+
+        # Try to parse JSON, with cleanup for common issues
+        try:
+            extracted = json.loads(raw_response)
+        except json.JSONDecodeError:
+            # Try to fix truncated JSON by closing open strings/objects
+            cleaned = raw_response.strip()
+            if not cleaned.endswith("}"):
+                cleaned += '"}'
+            try:
+                extracted = json.loads(cleaned)
+            except json.JSONDecodeError:
+                # Last resort: extract what we can with regex
+                import re
+                extracted = {}
+                for field in ["nom", "fournisseur_nom", "montant_ht", "tva_taux", "montant_ttc", "date_devis", "categorie", "description"]:
+                    match = re.search(r'"' + field + r'":\s*"?([^",}]+)"?', raw_response)
+                    if match:
+                        val = match.group(1).strip()
+                        if field in ("montant_ht", "tva_taux", "montant_ttc", "tva_montant"):
+                            try:
+                                extracted[field] = float(val)
+                            except ValueError:
+                                pass
+                        else:
+                            extracted[field] = val
+
         logger.info("Devis extracted OK: %s (%s)", extracted.get("nom", "?"), extraction.get("method"))
 
         return {

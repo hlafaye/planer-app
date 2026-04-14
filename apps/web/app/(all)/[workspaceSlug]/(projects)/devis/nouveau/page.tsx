@@ -165,9 +165,15 @@ export default function NouveauDevisPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            ...form,
+            type_devis: form.type_devis,
+            nom: form.nom,
+            description: form.description,
+            categorie: form.categorie,
+            poste_budget: form.poste_budget,
             montant_ht: parseFloat(form.montant_ht),
             tva_taux: parseFloat(form.tva_taux || "20"),
+            date_devis: form.date_devis || new Date().toISOString().split("T")[0],
+            date_livraison_prevue: form.date_livraison_prevue || null,
           }),
         }
       );

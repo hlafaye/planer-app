@@ -51,6 +51,12 @@ class DevisSerializer(serializers.ModelSerializer):
             "actions",
             "created_at", "updated_at",
         ]
+        extra_kwargs = {
+            "fournisseur": {"required": False, "allow_null": True},
+            "date_devis": {"required": False},
+            "module": {"required": False, "allow_null": True},
+            "issue_liee": {"required": False, "allow_null": True},
+        }
         read_only_fields = [
             "id", "reference", "tva_montant", "montant_ttc",
             "created_at", "updated_at",
