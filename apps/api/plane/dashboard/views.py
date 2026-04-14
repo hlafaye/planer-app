@@ -304,18 +304,24 @@ class ExecutiveDashboardView(DashboardAuthMixin, APIView):
         else:
             risk = "high"
 
-        # Module health (traffic lights)
+        # Module health (segmented bars + traffic lights)
         modules = []
         for mod in Module.objects.filter(project=project):
             mod_issues = issues.filter(issue_module__module=mod)
             mod_total = mod_issues.count()
             mod_done = mod_issues.filter(state__group="completed").count()
+            mod_in_progress = mod_issues.filter(
+                state__group="started"
+            ).exclude(target_date__lt=now.date()).count()
             mod_overdue = mod_issues.filter(
                 target_date__lt=now.date()
             ).exclude(state__group="completed").count()
+            mod_backlog = mod_total - mod_done - mod_in_progress - mod_overdue
+
             pct = round(mod_done / mod_total * 100) if mod_total else 0
 
-            if mod_overdue > 2 or (mod_total > 0 and pct < 10):
+            # Traffic light logic
+            if mod_overdue > 3 or (mod_overdue > 0 and mod_total > 0 and mod_backlog / mod_total > 0.8):
                 color = "red"
             elif mod_overdue > 0 or pct < 30:
                 color = "orange"
@@ -324,10 +330,15 @@ class ExecutiveDashboardView(DashboardAuthMixin, APIView):
 
             modules.append({
                 "name": mod.name,
-                "pct": pct,
+                "total": mod_total,
+                "completed": mod_done,
+                "in_progress": mod_in_progress,
                 "overdue": mod_overdue,
+                "backlog": max(0, mod_backlog),
+                "pct": pct,
                 "color": color,
             })
+        modules.sort(key=lambda m: m["total"], reverse=True)
 
         return Response({
             "health_score": health,

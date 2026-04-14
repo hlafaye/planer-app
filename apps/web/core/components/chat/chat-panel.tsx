@@ -83,15 +83,27 @@ export function ChatPanel({ workspaceSlug }: Props) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Group channels by type
-  const groupedChannels = useMemo(() => {
-    const groups: Record<string, ChatChannel[]> = {};
+  // Group channels: workspace-level first, then by project
+  const { workspaceChannels, projectGroups } = useMemo(() => {
+    const ws: ChatChannel[] = [];
+    const byProject: Record<string, { name: string; main: ChatChannel[]; modules: ChatChannel[] }> = {};
+
     for (const ch of channels) {
-      const type = ch.channel_type || "general";
-      if (!groups[type]) groups[type] = [];
-      groups[type].push(ch);
+      if (!ch.project) {
+        ws.push(ch);
+      } else {
+        if (!byProject[ch.project]) {
+          byProject[ch.project] = { name: "", main: [], modules: [] };
+        }
+        if (ch.channel_type === "project") {
+          byProject[ch.project].main.push(ch);
+          byProject[ch.project].name = ch.name;
+        } else {
+          byProject[ch.project].modules.push(ch);
+        }
+      }
     }
-    return groups;
+    return { workspaceChannels: ws, projectGroups: Object.entries(byProject) };
   }, [channels]);
 
   // Auto-select first channel
@@ -167,15 +179,32 @@ export function ChatPanel({ workspaceSlug }: Props) {
           ) : channels.length === 0 ? (
             <div className="text-xs text-custom-text-400 p-3">Aucun channel</div>
           ) : (
-            GROUP_ORDER.map((type) => (
-              <ChannelGroup
-                key={type}
-                type={type}
-                channels={groupedChannels[type] || []}
-                activeChannelId={activeChannelId}
-                onSelect={setActiveChannelId}
-              />
-            ))
+            <>
+              {/* Workspace-level channels */}
+              {workspaceChannels.length > 0 && (
+                <ChannelGroup type="general" channels={workspaceChannels} activeChannelId={activeChannelId} onSelect={setActiveChannelId} />
+              )}
+
+              {/* Project-grouped channels */}
+              {projectGroups.map(([projId, group]) => (
+                <div key={projId} className="mb-1">
+                  <div className="px-3 py-1.5 text-xs font-semibold text-custom-text-400 uppercase tracking-wider flex items-center gap-1">
+                    📁 {group.name || "Projet"}
+                  </div>
+                  {/* Project main channel */}
+                  {group.main.map((ch) => (
+                    <button key={ch.id} onClick={() => setActiveChannelId(ch.id)} className={`w-full text-left px-3 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors ml-2 ${ch.id === activeChannelId ? "bg-[#BF5D48]/10 text-[#BF5D48] font-medium" : "text-custom-text-200 hover:bg-custom-background-90"}`}>
+                      <span className="truncate">#{ch.name}</span>
+                      {ch.unread_count > 0 && <span className="ml-auto rounded-full bg-[#BF5D48] px-1.5 py-0.5 text-xs text-white font-medium">{ch.unread_count}</span>}
+                    </button>
+                  ))}
+                  {/* Module channels */}
+                  {group.modules.length > 0 && (
+                    <ChannelGroup type="module" channels={group.modules} activeChannelId={activeChannelId} onSelect={setActiveChannelId} />
+                  )}
+                </div>
+              ))}
+            </>
           )}
         </div>
       </div>

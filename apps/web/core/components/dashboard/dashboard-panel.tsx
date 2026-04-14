@@ -334,30 +334,80 @@ function ExecutiveView({ data }: { data: any }) {
         <KPICard icon="📋" label="Backlog" value={data.kpis.total - data.kpis.done - data.kpis.in_progress} />
       </div>
 
-      {/* Module health — traffic lights */}
+      {/* Module health — segmented bars + traffic lights */}
       <SectionCard title="🚦 Santé par module">
-        <div className="space-y-2">
-          {data.modules.map((mod: any) => (
-            <div key={mod.name} className="flex items-center gap-4 py-2.5 px-3 rounded-lg hover:bg-custom-background-90/50">
-              <TrafficLight color={mod.color} />
-              <span className="text-sm font-medium text-custom-text-200 flex-1">{mod.name}</span>
-              <div className="w-32">
-                <div className="h-2 rounded-full bg-custom-background-90 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${Math.max(mod.pct, 3)}%`,
-                      background: mod.color === "green" ? "#4ade80" : mod.color === "orange" ? "#fb923c" : "#ef4444",
-                    }}
-                  />
+        <div className="space-y-1">
+          {data.modules.map((mod: any) => {
+            const total = mod.total || 1;
+            const pctDone = (mod.completed || 0) / total * 100;
+            const pctProgress = (mod.in_progress || 0) / total * 100;
+            const pctOverdue = (mod.overdue || 0) / total * 100;
+            const pctBacklog = (mod.backlog || 0) / total * 100;
+
+            return (
+              <div key={mod.name} className="grid items-center gap-5 py-3 px-2 rounded-lg hover:bg-custom-background-90/30" style={{ gridTemplateColumns: "200px 1fr 60px 100px" }}>
+                {/* Col 1: Name + traffic light */}
+                <div className="flex items-center gap-2.5">
+                  <TrafficLight color={mod.color} />
+                  <span className="text-sm font-medium text-custom-text-200 truncate">{mod.name}</span>
                 </div>
+
+                {/* Col 2: Segmented bar */}
+                <div className="flex h-[22px] rounded-md overflow-hidden bg-[#3a3836]">
+                  {(mod.completed || 0) > 0 && (
+                    <div className="flex items-center justify-center text-[10px] font-semibold text-white" style={{ width: `${pctDone}%`, background: "#4ade80" }}>
+                      {pctDone > 15 ? `${mod.completed}` : ""}
+                    </div>
+                  )}
+                  {(mod.in_progress || 0) > 0 && (
+                    <div className="flex items-center justify-center text-[10px] font-semibold text-white" style={{ width: `${pctProgress}%`, background: "#fb923c" }}>
+                      {pctProgress > 15 ? `${mod.in_progress}` : ""}
+                    </div>
+                  )}
+                  {(mod.overdue || 0) > 0 && (
+                    <div className="flex items-center justify-center text-[10px] font-semibold text-white" style={{ width: `${pctOverdue}%`, background: "#ef4444" }}>
+                      {pctOverdue > 15 ? `${mod.overdue}` : ""}
+                    </div>
+                  )}
+                  {(mod.backlog || 0) > 0 && (
+                    <div className="flex items-center justify-center text-[10px] font-medium text-white/60" style={{ width: `${pctBacklog}%`, background: "#5a5552" }}>
+                      {pctBacklog > 20 ? `${mod.backlog}` : ""}
+                    </div>
+                  )}
+                </div>
+
+                {/* Col 3: Percentage */}
+                <div className="text-right text-sm font-semibold text-custom-text-100">{mod.pct}%</div>
+
+                {/* Col 4: Retard pill */}
+                {(mod.overdue || 0) > 0 ? (
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 text-center font-medium">
+                    {mod.overdue} retard{mod.overdue > 1 ? "s" : ""}
+                  </span>
+                ) : (
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 text-center font-medium">
+                    OK
+                  </span>
+                )}
               </div>
-              <span className="text-xs text-custom-text-400 w-10 text-right">{mod.pct}%</span>
-              {mod.overdue > 0 && (
-                <span className="text-xs text-red-500 font-medium">{mod.overdue} retard{mod.overdue > 1 ? "s" : ""}</span>
-              )}
-            </div>
-          ))}
+            );
+          })}
+        </div>
+
+        {/* Légende */}
+        <div className="flex items-center gap-4 mt-4 pt-3 border-t border-custom-border-100">
+          <div className="flex items-center gap-1.5 text-xs text-custom-text-400">
+            <div className="w-3 h-3 rounded-sm" style={{ background: "#4ade80" }} /> Terminées
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-custom-text-400">
+            <div className="w-3 h-3 rounded-sm" style={{ background: "#fb923c" }} /> En cours
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-custom-text-400">
+            <div className="w-3 h-3 rounded-sm" style={{ background: "#ef4444" }} /> En retard
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-custom-text-400">
+            <div className="w-3 h-3 rounded-sm" style={{ background: "#5a5552" }} /> Backlog
+          </div>
         </div>
       </SectionCard>
     </div>
