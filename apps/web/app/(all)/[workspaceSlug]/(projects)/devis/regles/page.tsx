@@ -252,30 +252,54 @@ export default function ReglesValidationPage() {
           + Ajouter un seuil
         </button>
 
-        {/* Modal */}
+        {/* Modal — solid background, filtered validators */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowModal(false)}>
-            <div className="rounded-xl bg-custom-background-100 border border-custom-border-200 shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-sm font-semibold text-custom-text-100 mb-4">Nouveau seuil de validation</h3>
+          <div
+            className="fixed inset-0 flex items-center justify-center"
+            style={{ zIndex: 9999, backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+            onClick={() => setShowModal(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-xl"
+              style={{
+                backgroundColor: "#1f1d1b",
+                border: "1px solid #3a3633",
+                boxShadow: "0 20px 50px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)",
+                padding: "24px 28px",
+                color: "#e8e0d8",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-base font-semibold mb-5 pb-3" style={{ borderBottom: "1px solid #3a3633" }}>
+                Nouveau seuil de validation
+              </h3>
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-custom-text-400 mb-1.5 block">Seuil maximum HT (EUR) — vide = pas de limite</label>
+                  <label className="block text-[11px] uppercase tracking-wider font-semibold mb-1.5" style={{ color: "#8a837d" }}>
+                    Seuil maximum HT (EUR) — vide = pas de limite
+                  </label>
                   <input
                     type="number"
                     value={modalForm.max_amount}
                     onChange={(e) => setModalForm({ ...modalForm, max_amount: e.target.value })}
                     placeholder="Ex: 10000"
-                    className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none"
+                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                    style={{ backgroundColor: "#1a1a1a", border: "1.5px solid #3a3633", color: "#e8e0d8" }}
+                    onFocus={(e) => (e.target.style.borderColor = "#BF5D48")}
+                    onBlur={(e) => (e.target.style.borderColor = "#3a3633")}
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-custom-text-400 mb-1.5 block">Mode de validation</label>
+                  <label className="block text-[11px] uppercase tracking-wider font-semibold mb-1.5" style={{ color: "#8a837d" }}>
+                    Mode de validation *
+                  </label>
                   <select
                     value={modalForm.mode}
                     onChange={(e) => setModalForm({ ...modalForm, mode: e.target.value })}
-                    className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:outline-none"
+                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                    style={{ backgroundColor: "#1a1a1a", border: "1.5px solid #3a3633", color: "#e8e0d8" }}
                   >
                     <option value="auto">Auto-approuvé</option>
                     <option value="one">Un validateur suffit</option>
@@ -286,35 +310,74 @@ export default function ReglesValidationPage() {
 
                 {modalForm.mode !== "auto" && (
                   <div>
-                    <label className="text-xs text-custom-text-400 mb-1.5 block">Validateurs</label>
-                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                      {members.map((m) => {
-                        const user = m.member || m;
-                        const userId = user.id;
-                        const isSelected = modalForm.validator_ids.includes(userId);
-                        return (
-                          <button
-                            key={userId}
-                            onClick={() => toggleValidator(userId)}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
-                              isSelected ? "bg-[#BF5D48]/10 text-[#BF5D48]" : "text-custom-text-200 hover:bg-custom-background-90"
-                            }`}
-                          >
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${isSelected ? "bg-[#BF5D48] border-[#BF5D48] text-white" : "border-custom-border-200"}`}>
-                              {isSelected && "✓"}
-                            </div>
-                            {user.display_name || user.email}
-                          </button>
-                        );
-                      })}
+                    <label className="block text-[11px] uppercase tracking-wider font-semibold mb-1.5" style={{ color: "#8a837d" }}>
+                      Validateurs * {modalForm.validator_ids.length > 0 && `(${modalForm.validator_ids.length} sélectionné${modalForm.validator_ids.length > 1 ? "s" : ""})`}
+                    </label>
+                    <div
+                      className="space-y-1 max-h-44 overflow-y-auto rounded-lg p-2"
+                      style={{ backgroundColor: "#1a1a1a", border: "1px solid #3a3633" }}
+                    >
+                      {members
+                        .filter((m) => {
+                          const user = m.member || m;
+                          const email = (user.email || "").toLowerCase();
+                          const name = (user.display_name || "").toLowerCase();
+                          // Filter out bots and system users
+                          return !["plane", "bot", "system", "planer"].some(
+                            (s) => email.includes(s) || name === s
+                          );
+                        })
+                        .map((m) => {
+                          const user = m.member || m;
+                          const userId = user.id;
+                          const isSelected = modalForm.validator_ids.includes(userId);
+                          return (
+                            <button
+                              key={userId}
+                              onClick={() => toggleValidator(userId)}
+                              className="w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2.5 transition-colors"
+                              style={{
+                                backgroundColor: isSelected ? "rgba(191,93,72,0.15)" : "transparent",
+                                color: isSelected ? "#BF5D48" : "#c0b8b0",
+                              }}
+                              onMouseEnter={(e) => { if (!isSelected) (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"); }}
+                              onMouseLeave={(e) => { if (!isSelected) (e.currentTarget.style.backgroundColor = "transparent"); }}
+                            >
+                              <div
+                                className="w-[18px] h-[18px] rounded flex items-center justify-center text-[10px] flex-shrink-0"
+                                style={{
+                                  border: isSelected ? "none" : "1.5px solid #3a3633",
+                                  backgroundColor: isSelected ? "#BF5D48" : "transparent",
+                                  color: isSelected ? "white" : "transparent",
+                                }}
+                              >
+                                ✓
+                              </div>
+                              <span>{user.display_name || user.email}</span>
+                            </button>
+                          );
+                        })}
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-end gap-2 mt-6">
-                <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg text-sm text-custom-text-300 hover:bg-custom-background-90">Annuler</button>
-                <button onClick={handleCreateRule} className="px-4 py-2 rounded-lg bg-[#BF5D48] text-white text-sm font-medium hover:bg-[#a84d3b]">Enregistrer</button>
+              <div className="flex justify-end gap-2 mt-6 pt-4" style={{ borderTop: "1px solid #3a3633" }}>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm hover:opacity-80"
+                  style={{ color: "#8a837d" }}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleCreateRule}
+                  disabled={modalForm.mode !== "auto" && modalForm.validator_ids.length === 0}
+                  className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: "#BF5D48", color: "white" }}
+                >
+                  Enregistrer
+                </button>
               </div>
             </div>
           </div>
