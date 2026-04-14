@@ -123,6 +123,9 @@ export const coreRoutes: RouteConfigEntry[] = [
         // Planer custom: Dashboard
         route(":workspaceSlug/dashboard", "./(all)/[workspaceSlug]/(projects)/dashboard/page.tsx"),
 
+        // Planer custom: Devis
+        route(":workspaceSlug/devis", "./(all)/[workspaceSlug]/(projects)/devis/page.tsx"),
+
         // Archived Projects
         layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/archives/layout.tsx", [
           route(

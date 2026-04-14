@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "plane.authentication",
     "plane.chat",
     "plane.dashboard",
+    "plane.devis",
     # Third-party things
     "rest_framework",
     "corsheaders",

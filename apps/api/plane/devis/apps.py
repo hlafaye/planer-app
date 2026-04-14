@@ -1,0 +1,8 @@
+# Planer custom: Module Devis app config
+from django.apps import AppConfig
+
+
+class DevisConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "plane.devis"
+    verbose_name = "Planer Devis"

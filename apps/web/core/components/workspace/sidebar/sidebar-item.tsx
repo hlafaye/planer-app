@@ -58,6 +58,7 @@ export const SidebarItemBase = observer(function SidebarItemBase({
     "chat",
     "ai",
     "dashboard",
+    "devis",
     ...(additionalStaticItems || []),
   ];
   const slug = workspaceSlug?.toString() || "";

@@ -1,0 +1,158 @@
+# Planer custom: Module Devis API views
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.views import APIView
+
+from plane.authentication.session import BaseSessionAuthentication
+from plane.db.models import Project, Workspace
+from plane.devis.models import (
+    Fournisseur, Devis, ValidationRule, ValidationAction,
+    BonDeCommande, Facture,
+)
+from plane.devis.serializers import (
+    FournisseurSerializer,
+    DevisSerializer, DevisListSerializer,
+    ValidationRuleSerializer, ValidationActionSerializer,
+    BonDeCommandeSerializer, FactureSerializer,
+)
+
+
+class DevisAuthMixin:
+    authentication_classes = [BaseSessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+
+class FournisseurViewSet(DevisAuthMixin, ModelViewSet):
+    serializer_class = FournisseurSerializer
+
+    def get_queryset(self):
+        return Fournisseur.objects.filter(
+            workspace__slug=self.kwargs["workspace_slug"]
+        ).order_by("nom")
+
+    def perform_create(self, serializer):
+        ws = Workspace.objects.get(slug=self.kwargs["workspace_slug"])
+        serializer.save(workspace=ws)
+
+
+class DevisViewSet(DevisAuthMixin, ModelViewSet):
+    def get_serializer_class(self):
+        if self.action == "list":
+            return DevisListSerializer
+        return DevisSerializer
+
+    def get_queryset(self):
+        qs = Devis.objects.filter(
+            project_id=self.kwargs["project_id"],
+            workspace__slug=self.kwargs["workspace_slug"],
+        ).select_related("fournisseur", "module").prefetch_related("actions")
+
+        # Filters
+        statut = self.request.query_params.get("statut")
+        if statut:
+            qs = qs.filter(statut=statut)
+
+        type_devis = self.request.query_params.get("type")
+        if type_devis:
+            qs = qs.filter(type_devis=type_devis)
+
+        fournisseur = self.request.query_params.get("fournisseur")
+        if fournisseur:
+            qs = qs.filter(fournisseur_id=fournisseur)
+
+        return qs.order_by("-created_at")
+
+    def perform_create(self, serializer):
+        project = Project.objects.get(id=self.kwargs["project_id"])
+        serializer.save(project=project, workspace=project.workspace)
+
+
+class ValidationRuleViewSet(DevisAuthMixin, ModelViewSet):
+    serializer_class = ValidationRuleSerializer
+
+    def get_queryset(self):
+        return ValidationRule.objects.filter(
+            project_id=self.kwargs["project_id"]
+        )
+
+    def perform_create(self, serializer):
+        project = Project.objects.get(id=self.kwargs["project_id"])
+        serializer.save(project=project)
+
+
+class DevisActionView(DevisAuthMixin, APIView):
+    """Submit, approve, reject, request modification on a devis."""
+
+    def post(self, request, workspace_slug, project_id, devis_id):
+        devis = Devis.objects.get(id=devis_id, project_id=project_id)
+        action = request.data.get("action")
+        comment = request.data.get("comment", "")
+
+        valid_actions = ["submit", "approve", "reject", "request_modif", "resubmit"]
+        if action not in valid_actions:
+            return Response(
+                {"error": "Action invalide. Choix: {}".format(", ".join(valid_actions))},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # State machine
+        transitions = {
+            "submit": {"from": ["draft", "modif_requested"], "to": "pending"},
+            "approve": {"from": ["pending"], "to": "approved"},
+            "reject": {"from": ["pending"], "to": "rejected"},
+            "request_modif": {"from": ["pending"], "to": "modif_requested"},
+            "resubmit": {"from": ["rejected", "modif_requested"], "to": "pending"},
+        }
+
+        transition = transitions.get(action)
+        if devis.statut not in transition["from"]:
+            return Response(
+                {"error": "Transition impossible: {} -> {}".format(devis.statut, action)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Create action record
+        ValidationAction.objects.create(
+            devis=devis,
+            action=action,
+            from_user=request.user,
+            comment=comment,
+        )
+
+        # Update devis status
+        devis.statut = transition["to"]
+        devis.save(update_fields=["statut", "updated_at"])
+
+        return Response(DevisSerializer(devis).data)
+
+
+class DevisStatsView(DevisAuthMixin, APIView):
+    """Dashboard stats for devis in a project."""
+
+    def get(self, request, workspace_slug, project_id):
+        devis_qs = Devis.objects.filter(
+            project_id=project_id, workspace__slug=workspace_slug
+        )
+
+        total = devis_qs.count()
+        by_statut = {}
+        for s in Devis.STATUT_CHOICES:
+            count = devis_qs.filter(statut=s[0]).count()
+            if count > 0:
+                by_statut[s[0]] = {"label": s[1], "count": count}
+
+        total_ht = sum(
+            d.montant_ht for d in devis_qs.filter(statut__in=["approved", "ordered", "delivered", "invoiced"])
+        )
+        total_ttc = sum(
+            d.montant_ttc for d in devis_qs.filter(statut__in=["approved", "ordered", "delivered", "invoiced"])
+        )
+
+        return Response({
+            "total": total,
+            "by_statut": by_statut,
+            "total_approuve_ht": float(total_ht),
+            "total_approuve_ttc": float(total_ttc),
+        })

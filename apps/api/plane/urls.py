@@ -21,6 +21,8 @@ urlpatterns = [
     path("api/v1/", include("plane.api.urls")),
     path("api/v1/workspaces/<str:workspace_slug>/chat/", include("plane.chat.urls")),
     path("api/v1/workspaces/<str:workspace_slug>/projects/<uuid:project_id>/dashboard/", include("plane.dashboard.urls")),
+    path("api/v1/workspaces/<str:workspace_slug>/", include("plane.devis.urls")),
+    path("api/v1/workspaces/<str:workspace_slug>/projects/<uuid:project_id>/devis/", include("plane.devis.urls_project")),
     path("auth/", include("plane.authentication.urls")),
     path("", include("plane.web.urls")),
 ]
