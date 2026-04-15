@@ -29,6 +29,8 @@ export default function DevisDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionComment, setActionComment] = useState("");
   const [actioning, setActioning] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
 
   // Fetch project
   useEffect(() => {
@@ -91,6 +93,45 @@ export default function DevisDetailPage() {
     }
   };
 
+  const startEdit = () => {
+    setEditForm({
+      nom: devis.nom,
+      description: devis.description || "",
+      categorie: devis.categorie || "",
+      poste_budget: devis.poste_budget || "",
+      montant_ht: devis.montant_ht,
+      tva_taux: devis.tva_taux,
+      date_devis: devis.date_devis || "",
+      date_livraison_prevue: devis.date_livraison_prevue || "",
+    });
+    setEditMode(true);
+  };
+
+  const handleSave = async () => {
+    if (!projectId) return;
+    try {
+      const resp = await fetch(
+        `/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/devis/${devisId}/`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            ...editForm,
+            montant_ht: parseFloat(editForm.montant_ht),
+            tva_taux: parseFloat(editForm.tva_taux || "20"),
+          }),
+        }
+      );
+      if (resp.ok) {
+        setEditMode(false);
+        fetchDevis();
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+    }
+  };
+
   const formatMoney = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
   const formatDate = (d: string) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
   const formatDateTime = (d: string) => d ? new Date(d).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
@@ -125,7 +166,19 @@ export default function DevisDetailPage() {
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            {devis.statut === "draft" && (
+            {editMode ? (
+              <>
+                <button onClick={() => setEditMode(false)} className="px-3 py-1.5 rounded-lg text-xs text-custom-text-300 hover:bg-custom-background-90">Annuler</button>
+                <button onClick={handleSave} className="px-3 py-1.5 rounded-lg bg-[#BF5D48] text-white text-xs font-medium hover:bg-[#a84d3b]">✓ Enregistrer</button>
+              </>
+            ) : (
+              <>
+                {devis.statut === "draft" && (
+                  <button onClick={startEdit} className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-xs text-custom-text-300 hover:bg-custom-background-90">✎ Modifier</button>
+                )}
+              </>
+            )}
+            {!editMode && devis.statut === "draft" && (
               <button onClick={() => handleAction("submit")} disabled={actioning} className="px-3 py-1.5 rounded-lg bg-[#BF5D48] text-white text-xs font-medium hover:bg-[#a84d3b] disabled:opacity-50">
                 Envoyer en validation →
               </button>
@@ -151,6 +204,48 @@ export default function DevisDetailPage() {
           </div>
         </div>
 
+        {/* Edit form */}
+        {editMode && (
+          <div className="rounded-xl border border-[#BF5D48]/30 bg-custom-background-100 p-5 shadow-sm mb-6">
+            <h3 className="text-sm font-semibold text-custom-text-100 mb-4">✎ Modifier le devis</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="text-xs text-custom-text-400 mb-1 block">Nom *</label>
+                <input value={editForm.nom} onChange={(e) => setEditForm({ ...editForm, nom: e.target.value })} className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs text-custom-text-400 mb-1 block">Catégorie</label>
+                <input value={editForm.categorie} onChange={(e) => setEditForm({ ...editForm, categorie: e.target.value })} className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs text-custom-text-400 mb-1 block">Poste budget</label>
+                <input value={editForm.poste_budget} onChange={(e) => setEditForm({ ...editForm, poste_budget: e.target.value })} className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs text-custom-text-400 mb-1 block">Montant HT</label>
+                <input type="number" step="0.01" value={editForm.montant_ht} onChange={(e) => setEditForm({ ...editForm, montant_ht: e.target.value })} className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs text-custom-text-400 mb-1 block">TVA %</label>
+                <input type="number" step="0.1" value={editForm.tva_taux} onChange={(e) => setEditForm({ ...editForm, tva_taux: e.target.value })} className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs text-custom-text-400 mb-1 block">Date devis</label>
+                <input type="date" value={editForm.date_devis} onChange={(e) => setEditForm({ ...editForm, date_devis: e.target.value })} className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs text-custom-text-400 mb-1 block">Date livraison prévue</label>
+                <input type="date" value={editForm.date_livraison_prevue} onChange={(e) => setEditForm({ ...editForm, date_livraison_prevue: e.target.value })} className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs text-custom-text-400 mb-1 block">Description</label>
+                <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} className="w-full rounded-lg border border-custom-border-200 bg-custom-background-100 px-3 py-2 text-sm text-custom-text-100 focus:border-[#BF5D48] focus:outline-none" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!editMode && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Informations */}
           <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-5 shadow-sm">
@@ -186,6 +281,7 @@ export default function DevisDetailPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* PDF Preview */}
         {devis.pdf_original && (

@@ -67,9 +67,30 @@ class DevisViewSet(DevisAuthMixin, ModelViewSet):
 
         return qs.order_by("-created_at")
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        """Override to handle fournisseur_nom → auto-create Fournisseur."""
+        import logging
+        logger = logging.getLogger("plane.devis")
+        data = request.data.copy()
+
+        # Auto-create fournisseur from name string
+        fournisseur_nom = data.pop("fournisseur_nom", None)
+        if isinstance(fournisseur_nom, str) and fournisseur_nom.strip() and not data.get("fournisseur"):
+            project = Project.objects.get(id=self.kwargs["project_id"])
+            fournisseur, created = Fournisseur.objects.get_or_create(
+                workspace=project.workspace,
+                nom=fournisseur_nom.strip(),
+                defaults={"categorie_principale": data.get("categorie", "")},
+            )
+            data["fournisseur"] = str(fournisseur.id)
+            if created:
+                logger.info("Auto-created fournisseur: %s", fournisseur_nom)
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
         project = Project.objects.get(id=self.kwargs["project_id"])
         serializer.save(project=project, workspace=project.workspace)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class ValidationRuleViewSet(DevisAuthMixin, ModelViewSet):

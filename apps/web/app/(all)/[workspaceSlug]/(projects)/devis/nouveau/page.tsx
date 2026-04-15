@@ -174,6 +174,7 @@ export default function NouveauDevisPage() {
             tva_taux: parseFloat(form.tva_taux || "20"),
             date_devis: form.date_devis || new Date().toISOString().split("T")[0],
             date_livraison_prevue: form.date_livraison_prevue || null,
+            fournisseur_nom: form.fournisseur_nom || null,
           }),
         }
       );
