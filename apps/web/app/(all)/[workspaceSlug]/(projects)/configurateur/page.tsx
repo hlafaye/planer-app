@@ -116,7 +116,11 @@ export default function ConfigurateurAOPage() {
                 </td></tr>
               ) : (
                 projets.map((p) => (
-                  <tr key={p.id} className="border-b border-custom-border-100 hover:bg-custom-background-90/30 cursor-pointer">
+                  <tr
+                    key={p.id}
+                    className="border-b border-custom-border-100 hover:bg-custom-background-90/30 cursor-pointer"
+                    onClick={() => window.location.assign(`/${workspaceSlug}/configurateur/${p.id}`)}
+                  >
                     <td className="px-4 py-3 font-medium text-custom-text-100">{p.nom}</td>
                     <td className="px-4 py-3 text-custom-text-300">{p.client}</td>
                     <td className="px-4 py-3 text-xs text-custom-text-400">{p.nature_display}</td>

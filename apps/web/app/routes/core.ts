@@ -132,6 +132,7 @@ export const coreRoutes: RouteConfigEntry[] = [
         // Planer custom: Configurateur AO
         route(":workspaceSlug/configurateur", "./(all)/[workspaceSlug]/(projects)/configurateur/page.tsx"),
         route(":workspaceSlug/configurateur/nouveau", "./(all)/[workspaceSlug]/(projects)/configurateur/nouveau/page.tsx"),
+        route(":workspaceSlug/configurateur/:projetId", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/page.tsx"),
 
         // Archived Projects
         layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/archives/layout.tsx", [

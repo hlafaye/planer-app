@@ -38,6 +38,46 @@ class ProjetAOViewSet(AOAuthMixin, ModelViewSet):
         serializer.save(workspace=ws)
 
 
+class ChangeStatutView(AOAuthMixin, APIView):
+    """Change the status of a ProjetAO."""
+
+    def patch(self, request, workspace_slug, pk):
+        projet = ProjetAO.objects.get(id=pk, workspace__slug=workspace_slug)
+        nouveau_statut = request.data.get("statut")
+        valid = dict(ProjetAO.STATUTS)
+        if nouveau_statut not in valid:
+            return Response(
+                {"error": "Statut invalide: {}".format(nouveau_statut)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        projet.statut = nouveau_statut
+        projet.save()
+        return Response(ProjetAOSerializer(projet).data)
+
+
+class DupliquerView(AOAuthMixin, APIView):
+    """Duplicate a ProjetAO with all its PdV."""
+
+    def post(self, request, workspace_slug, pk):
+        original = ProjetAO.objects.get(id=pk, workspace__slug=workspace_slug)
+        pdvs = list(original.points_de_vente.all())
+
+        original.pk = None
+        original.nom = "{} (copie)".format(original.nom)
+        original.statut = "draft"
+        original.save()
+
+        for pdv in pdvs:
+            pdv.pk = None
+            pdv.projet_ao = original
+            pdv.save()
+
+        return Response(
+            ProjetAOSerializer(original).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
 class PointDeVenteViewSet(AOAuthMixin, ModelViewSet):
     serializer_class = PointDeVenteSerializer
 
