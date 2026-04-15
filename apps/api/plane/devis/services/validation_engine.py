@@ -43,16 +43,12 @@ class ValidationEngine:
 
         rule = cls.find_applicable_rule(devis)
         if not rule:
-            # No rule → auto-approve
-            devis.statut = "approved"
-            devis.validation_step = 0
-            devis.save()
-            ValidationAction.objects.create(
-                devis=devis, action="submit", from_user=user,
-                comment="Auto-approuve (aucune regle configuree)",
+            raise DjangoValidationError(
+                "Aucune regle de validation ne couvre ce montant ({} EUR HT) "
+                "pour le type '{}'. Configurez les regles dans Devis > Regles.".format(
+                    devis.montant_ht, devis.type_devis
+                )
             )
-            logger.info("Devis %s auto-approved (no rule)", devis.reference)
-            return devis
 
         devis.validation_rule = rule
 

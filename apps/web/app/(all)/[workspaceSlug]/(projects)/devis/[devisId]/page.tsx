@@ -85,6 +85,9 @@ export default function DevisDetailPage() {
       if (resp.ok) {
         setActionComment("");
         fetchDevis();
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        alert(err.error || "Erreur lors de l'action");
       }
     } catch (err) {
       console.error("Action error:", err);
@@ -204,10 +207,16 @@ export default function DevisDetailPage() {
                 <button onClick={() => handleAction("approve")} disabled={actioning} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50">
                   ✓ Approuver
                 </button>
-                <button onClick={() => handleAction("request_modif")} disabled={actioning} className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-xs text-custom-text-300 hover:bg-custom-background-90 disabled:opacity-50">
+                <button onClick={() => {
+                  if (!actionComment.trim()) { alert("Saisissez un commentaire avant de demander une modification."); return; }
+                  handleAction("request_modif");
+                }} disabled={actioning} className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-xs text-custom-text-300 hover:bg-custom-background-90 disabled:opacity-50">
                   Demander modif
                 </button>
-                <button onClick={() => handleAction("reject")} disabled={actioning} className="px-3 py-1.5 rounded-lg border border-red-500/30 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50">
+                <button onClick={() => {
+                  if (!actionComment.trim()) { alert("Saisissez un motif de rejet dans le commentaire."); return; }
+                  handleAction("reject");
+                }} disabled={actioning} className="px-3 py-1.5 rounded-lg border border-red-500/30 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50">
                   Rejeter
                 </button>
               </>
