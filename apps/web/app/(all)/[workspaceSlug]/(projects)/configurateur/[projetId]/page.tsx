@@ -1,8 +1,8 @@
-// Planer custom: Configurateur AO — detail page with status stepper + tabs
+// Planer custom: Configurateur AO — detail page (polished EMPREINTES design)
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -40,46 +40,90 @@ type ProjetAO = {
   updated_at: string;
 };
 
+// ─── Design Tokens (EMPREINTES) ──────────────────────────────────────────────
+
+const C = {
+  terracotta: "#BF5D48",
+  terracottaHover: "#a84d3b",
+  terracottaBg: "rgba(191,93,72,0.10)",
+  terracottaGlow: "rgba(191,93,72,0.20)",
+  chlorophyle: "#385835",
+  chlorophyleBg: "rgba(56,88,53,0.15)",
+  sauge: "#929F88",
+  saugeBg: "rgba(146,159,136,0.15)",
+  nude: "#C4A882",
+  nudeBg: "rgba(196,168,130,0.15)",
+  charbon: "#3A3632",
+  charbonBg: "rgba(58,54,50,0.25)",
+};
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { key: "draft", label: "Brouillon" },
-  { key: "en_cours", label: "En cours" },
-  { key: "fige", label: "Fige" },
-  { key: "remis", label: "Remis" },
-  { key: "gagne", label: "Gagne" },
+  { key: "draft", label: "Brouillon", icon: "\u270F\uFE0F" },
+  { key: "en_cours", label: "En cours", icon: "\u2699\uFE0F" },
+  { key: "fige", label: "Fige", icon: "\uD83D\uDD12" },
+  { key: "remis", label: "Remis", icon: "\uD83D\uDCEC" },
+  { key: "gagne", label: "Gagne", icon: "\uD83C\uDFC6" },
 ];
 
-const PDV_TYPES: Record<string, string> = {
-  self: "Self-Service",
-  cafeteria: "Cafeteria",
-  brasserie: "Brasserie",
-  room_service: "Room Service",
-  club_vip: "Club VIP",
-  da: "Distributeur Auto",
-  dflab: "Digital Food Lab",
+const PDV_ICONS: Record<string, string> = {
+  self: "\uD83C\uDF71", cafeteria: "\u2615", brasserie: "\uD83E\uDD69",
+  room_service: "\uD83D\uDECE\uFE0F", club_vip: "\uD83E\uDD42",
+  da: "\uD83E\uDD16", dflab: "\uD83D\uDD2C",
+};
+
+const PDV_LABELS: Record<string, string> = {
+  self: "Self-Service", cafeteria: "Cafeteria", brasserie: "Brasserie",
+  room_service: "Room Service", club_vip: "Club VIP",
+  da: "Distributeur Auto", dflab: "Digital Food Lab",
 };
 
 const NATURES: Record<string, string> = {
-  ouverture: "Ouverture",
-  reprise: "Reprise",
-  renouvellement: "Renouvellement",
+  ouverture: "Ouverture", reprise: "Reprise", renouvellement: "Renouvellement",
 };
 
-const MODES_GESTION: Record<string, string> = {
-  masse_frais: "Masse de frais",
-  admission: "Admission / Subvention",
-  mixte: "Mixte",
-  ticket: "Tout sur le ticket",
-  custom: "Autre / Custom",
-};
+const MODES = [
+  { id: "masse_frais", icon: "\uD83D\uDCBC", name: "Masse de Frais", desc: "Charges salariales et FG facturees mensuellement au client. Convives paient au prix BPU.", tip: "Le plus courant en restauration d'entreprise" },
+  { id: "admission", icon: "\uD83C\uDFAB", name: "Admission / Subvention", desc: "Prix convive fixe. Employeur subventionne ses salaries. Part alimentaire optionnelle.", tip: "Site avec politique de subvention claire" },
+  { id: "mixte", icon: "\u2696\uFE0F", name: "Mixte", desc: "Masse de frais pour les charges fixes + admissions pour les exterieurs.", tip: "Projets complexes avec convives mixtes" },
+  { id: "ticket", icon: "\uD83C\uDF7D\uFE0F", name: "Tout sur le ticket", desc: "Restauration commerciale classique. Le convive paie tout.", tip: "Restaurants grand public" },
+  { id: "custom", icon: "\u2699\uFE0F", name: "Autre / Custom", desc: "Mode hybride ou specifique. Parametrage libre.", tip: "Cas atypiques" },
+];
 
 const HORAIRES: Record<string, string> = {
-  midi: "Midi",
-  midi_soir: "Midi + Soir",
-  continu: "Continu",
-  pdj_midi: "Petit-dej + Midi",
+  midi: "Midi", midi_soir: "Midi + Soir", continu: "Continu", pdj_midi: "Petit-dej + Midi",
 };
+
+const SCORE_FIELDS = [
+  { key: "scoring_prix_pct" as const, label: "Prix", icon: "\uD83D\uDCB0", color: C.terracotta, bg: C.terracottaBg },
+  { key: "scoring_concept_pct" as const, label: "Concept", icon: "\uD83D\uDCA1", color: C.nude, bg: C.nudeBg },
+  { key: "scoring_rh_pct" as const, label: "RH & Organisation", icon: "\uD83D\uDC65", color: C.chlorophyle, bg: C.chlorophyleBg },
+  { key: "scoring_rse_pct" as const, label: "RSE / DD", icon: "\u267B\uFE0F", color: C.sauge, bg: C.saugeBg },
+  { key: "scoring_qualite_pct" as const, label: "Qualite & HSQE", icon: "\u2705", color: C.charbon, bg: C.charbonBg },
+];
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+
+function useToast() {
+  const [msg, setMsg] = useState<{ text: string; type: "ok" | "err" } | null>(null);
+  const show = (text: string, type: "ok" | "err" = "ok") => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg(null), 2500);
+  };
+  const Toast = msg ? (
+    <div
+      className="fixed bottom-6 right-6 z-[9999] px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg animate-[slideUp_0.3s_ease]"
+      style={{
+        background: msg.type === "ok" ? C.chlorophyle : C.terracotta,
+        color: "white",
+      }}
+    >
+      {msg.type === "ok" ? "\u2713 " : "\u2717 "}{msg.text}
+    </div>
+  ) : null;
+  return { show, Toast };
+}
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
@@ -89,6 +133,7 @@ export default function ProjetAODetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("general");
   const [menuOpen, setMenuOpen] = useState(false);
+  const toast = useToast();
 
   const apiBase = `/api/v1/workspaces/${workspaceSlug}/configurateur`;
 
@@ -113,37 +158,31 @@ export default function ProjetAODetailPage() {
       body: JSON.stringify({ statut }),
     });
     if (resp.ok) {
-      const data = await resp.json();
-      setProjet(data);
+      setProjet(await resp.json());
+      toast.show("Statut mis a jour");
     } else {
-      alert("Erreur changement de statut");
+      toast.show("Erreur changement de statut", "err");
     }
   };
 
   const dupliquer = async () => {
     const resp = await fetch(`${apiBase}/projets/${projetId}/dupliquer/`, {
-      method: "POST",
-      credentials: "include",
+      method: "POST", credentials: "include",
     });
     if (resp.ok) {
       const data = await resp.json();
-      window.location.assign(`/${workspaceSlug}/configurateur/${data.id}`);
+      toast.show("Projet duplique");
+      setTimeout(() => window.location.assign(`/${workspaceSlug}/configurateur/${data.id}`), 600);
     } else {
-      alert("Erreur duplication");
+      toast.show("Erreur duplication", "err");
     }
   };
 
   const supprimer = async () => {
     if (!confirm("Supprimer ce projet AO ? Cette action est irreversible.")) return;
-    const resp = await fetch(`${apiBase}/projets/${projetId}/`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (resp.ok) {
-      window.location.assign(`/${workspaceSlug}/configurateur`);
-    } else {
-      alert("Erreur suppression");
-    }
+    const resp = await fetch(`${apiBase}/projets/${projetId}/`, { method: "DELETE", credentials: "include" });
+    if (resp.ok) window.location.assign(`/${workspaceSlug}/configurateur`);
+    else toast.show("Erreur suppression", "err");
   };
 
   if (loading) {
@@ -159,8 +198,8 @@ export default function ProjetAODetailPage() {
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <p className="text-custom-text-400 text-sm">Projet introuvable</p>
-          <a href={`/${workspaceSlug}/configurateur`} className="text-[#BF5D48] text-sm mt-2 inline-block">
-            Retour a la liste
+          <a href={`/${workspaceSlug}/configurateur`} className="text-sm mt-2 inline-block no-underline" style={{ color: C.terracotta }}>
+            &larr; Retour a la liste
           </a>
         </div>
       </div>
@@ -168,60 +207,81 @@ export default function ProjetAODetailPage() {
   }
 
   const tabs = [
-    { key: "general", label: "General" },
-    { key: "pdv", label: `Points de Vente (${projet.points_de_vente.length})` },
-    { key: "gestion", label: "Mode de gestion" },
-    { key: "scoring", label: "Scoring CCTP" },
-    { key: "docs", label: "Documents" },
+    { key: "general", label: "General", icon: "\uD83D\uDCCB" },
+    { key: "pdv", label: `Points de Vente (${projet.points_de_vente.length})`, icon: "\uD83C\uDFE2" },
+    { key: "gestion", label: "Mode de gestion", icon: "\uD83D\uDCCA" },
+    { key: "scoring", label: "Scoring CCTP", icon: "\uD83C\uDFAF" },
+    { key: "docs", label: "Documents", icon: "\uD83D\uDCC4" },
   ];
+
+  const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-5xl mx-auto p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+      {toast.Toast}
+
+      <style>{`
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        input[type="range"] { -webkit-appearance: none; height: 8px; border-radius: 4px; background: rgba(90,85,82,0.2); outline: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+      `}</style>
+
+      <div className="max-w-5xl mx-auto px-6 py-5">
+        {/* ── Header ── */}
+        <div className="flex items-start justify-between pb-5 mb-2 border-b border-custom-border-200">
+          <div>
             <a
               href={`/${workspaceSlug}/configurateur`}
-              className="text-custom-text-400 hover:text-custom-text-200 text-sm no-underline"
+              className="text-custom-text-400 hover:text-custom-text-200 text-xs no-underline inline-flex items-center gap-1 mb-3"
             >
-              &larr; Retour
+              &larr; Retour a la liste
             </a>
-            <div>
-              <h1 className="text-lg font-bold text-custom-text-100">{projet.nom}</h1>
-              <p className="text-xs text-custom-text-400">
-                {projet.client}
-                {projet.date_remise && <> &middot; Remise le {new Date(projet.date_remise).toLocaleDateString("fr-FR")}</>}
-              </p>
+            <div
+              className="inline-block text-[10px] font-bold tracking-[2px] uppercase px-2.5 py-1 rounded-full mb-2"
+              style={{ color: C.terracotta, background: C.terracottaBg }}
+            >
+              CONFIGURATEUR AO
+            </div>
+            <h1 className="text-2xl font-bold text-custom-text-100 mb-1.5">
+              AO <span style={{ color: C.terracotta }}>{projet.client.toUpperCase()}</span>
+            </h1>
+            <div className="flex items-center gap-2 text-sm text-custom-text-400 flex-wrap">
+              {projet.localisation && <span>📍 {projet.localisation.toUpperCase()}</span>}
+              {projet.localisation && <span className="opacity-30">·</span>}
+              {projet.date_remise && <span>📅 Remise le {formatDate(projet.date_remise)}</span>}
+              {projet.date_remise && <span className="opacity-30">·</span>}
+              <span>🏢 {projet.client}</span>
+              <span className="opacity-30">·</span>
+              <span>🍽️ {projet.points_de_vente.length} Points de vente</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 relative">
+          <div className="flex items-center gap-2 mt-6 relative">
             <button
               onClick={dupliquer}
-              className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-200 text-sm hover:bg-custom-background-90/50"
+              className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-200 text-sm hover:bg-custom-background-90/50 flex items-center gap-1.5"
             >
-              Dupliquer
+              📋 Dupliquer
             </button>
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="px-2 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-200 text-sm hover:bg-custom-background-90/50"
+                className="px-2.5 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-200 text-sm hover:bg-custom-background-90/50"
               >
                 &#8942;
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-44 rounded-lg border border-custom-border-200 bg-custom-background-100 shadow-lg z-50">
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-custom-border-200 bg-custom-background-100 shadow-xl z-50 overflow-hidden">
                   <button
                     onClick={() => { changeStatut("perdu"); setMenuOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-sm text-custom-text-200 hover:bg-custom-background-90/50"
+                    className="w-full text-left px-4 py-2.5 text-sm text-custom-text-200 hover:bg-custom-background-90/50"
                   >
-                    Marquer Perdu
+                    💀 Marquer Perdu
                   </button>
                   <button
                     onClick={() => { supprimer(); setMenuOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
+                    className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10"
                   >
-                    Supprimer
+                    🗑️ Supprimer
                   </button>
                 </div>
               )}
@@ -229,32 +289,34 @@ export default function ProjetAODetailPage() {
           </div>
         </div>
 
-        {/* Status Stepper */}
+        {/* ── Status Stepper ── */}
         <StatusStepper current={projet.statut} onChange={changeStatut} />
 
-        {/* Tabs */}
-        <div className="flex gap-0 border-b border-custom-border-200 mb-6">
+        {/* ── Tabs ── */}
+        <div className="flex gap-1 mb-6 border-b border-custom-border-200">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all flex items-center gap-1.5 ${
                 activeTab === tab.key
-                  ? "border-[#BF5D48] text-custom-text-100"
+                  ? "text-custom-text-100"
                   : "border-transparent text-custom-text-400 hover:text-custom-text-200"
               }`}
+              style={activeTab === tab.key ? { borderBottomColor: C.terracotta } : {}}
             >
+              <span className="text-base">{tab.icon}</span>
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Tab Content */}
-        {activeTab === "general" && <TabGeneral projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
-        {activeTab === "pdv" && <TabPointsDeVente projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
-        {activeTab === "gestion" && <TabModeGestion projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
-        {activeTab === "scoring" && <TabScoring projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
-        {activeTab === "docs" && <TabDocuments projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
+        {/* ── Tab Content ── */}
+        {activeTab === "general" && <TabGeneral projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
+        {activeTab === "pdv" && <TabPointsDeVente projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
+        {activeTab === "gestion" && <TabModeGestion projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
+        {activeTab === "scoring" && <TabScoring projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
+        {activeTab === "docs" && <TabDocuments projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
       </div>
     </div>
   );
@@ -266,33 +328,98 @@ function StatusStepper({ current, onChange }: { current: string; onChange: (s: s
   const currentIdx = STEPS.findIndex((s) => s.key === current);
 
   return (
-    <div className="flex mb-6 rounded-xl overflow-hidden border border-custom-border-200">
+    <div className="flex items-center py-5 mb-4">
       {STEPS.map((step, i) => {
         const isDone = i < currentIdx;
         const isActive = i === currentIdx;
+        const isGagne = step.key === "gagne" && isActive;
         return (
-          <button
-            key={step.key}
-            onClick={() => onChange(step.key)}
-            className={`flex-1 py-3 px-2 text-center text-sm transition-all border-r last:border-r-0 border-custom-border-200 ${
-              isActive
-                ? "bg-[#BF5D48] text-white font-semibold"
-                : isDone
-                  ? "bg-[#BF5D48]/10 text-custom-text-200"
-                  : "bg-custom-background-100 text-custom-text-400 hover:bg-custom-background-90/50"
-            }`}
-          >
-            {step.label}
-          </button>
+          <div key={step.key} className="flex-1 flex items-center">
+            <button
+              onClick={() => onChange(step.key)}
+              className="flex flex-col items-center gap-1.5 flex-1 group"
+            >
+              {/* Circle */}
+              <div
+                className="w-11 h-11 rounded-full flex items-center justify-center text-lg transition-all relative z-10"
+                style={{
+                  background: isActive
+                    ? isGagne ? C.chlorophyle : C.terracotta
+                    : isDone ? C.terracottaBg : "rgba(90,85,82,0.08)",
+                  border: `2px solid ${isActive ? (isGagne ? C.chlorophyle : C.terracotta) : isDone ? C.terracotta : "rgba(90,85,82,0.15)"}`,
+                  boxShadow: isActive
+                    ? `0 0 0 4px ${isGagne ? "rgba(56,88,53,0.2)" : C.terracottaGlow}`
+                    : "none",
+                  transform: isActive ? "scale(1.1)" : "scale(1)",
+                }}
+              >
+                {step.icon}
+              </div>
+              {/* Label */}
+              <span
+                className="text-xs transition-all"
+                style={{
+                  fontWeight: isActive || isDone ? 600 : 400,
+                  color: isActive ? (isGagne ? C.chlorophyle : C.terracotta) : isDone ? "var(--color-text-100, #e8e2dc)" : "var(--color-text-400, #7a7672)",
+                }}
+              >
+                {step.label}
+              </span>
+            </button>
+            {/* Connector line */}
+            {i < STEPS.length - 1 && (
+              <div
+                className="h-0.5 flex-1 -mx-2 mt-[-18px]"
+                style={{ background: isDone ? C.terracotta : "rgba(90,85,82,0.15)" }}
+              />
+            )}
+          </div>
         );
       })}
     </div>
   );
 }
 
+// ─── SaveButton ──────────────────────────────────────────────────────────────
+
+type ToastHandle = { show: (text: string, type?: "ok" | "err") => void };
+
+function SaveButton({ onSave, disabled, toast }: { onSave: () => Promise<void>; disabled?: boolean; toast: ToastHandle }) {
+  const [status, setStatus] = useState<"idle" | "saving" | "done">("idle");
+
+  const handleClick = async () => {
+    setStatus("saving");
+    try {
+      await onSave();
+      setStatus("done");
+      toast.show("Modifications enregistrees");
+      setTimeout(() => setStatus("idle"), 1800);
+    } catch {
+      setStatus("idle");
+      toast.show("Erreur sauvegarde", "err");
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={disabled || status === "saving"}
+      className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50 flex items-center gap-2"
+      style={{
+        background: status === "done" ? C.chlorophyle : C.terracotta,
+      }}
+    >
+      {status === "saving" && (
+        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+      )}
+      {status === "saving" ? "Enregistrement..." : status === "done" ? "\u2713 Enregistre" : "Enregistrer"}
+    </button>
+  );
+}
+
 // ─── Tab: General ────────────────────────────────────────────────────────────
 
-function TabGeneral({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
+function TabGeneral({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
   const [form, setForm] = useState({
     nom: projet.nom,
     client: projet.client,
@@ -302,90 +429,52 @@ function TabGeneral({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: st
     nature: projet.nature,
     perimetre: projet.perimetre,
   });
-  const [saving, setSaving] = useState(false);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(form),
-      });
-      if (resp.ok) {
-        await onSave();
-      } else {
-        alert("Erreur sauvegarde");
-      }
-    } finally {
-      setSaving(false);
-    }
+  const save = async () => {
+    const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(form),
+    });
+    if (resp.ok) await onSave();
+    else throw new Error("save failed");
   };
 
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  const inputCls = "w-full px-3 py-2.5 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm focus:outline-none focus:ring-1 transition-shadow";
 
   return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-6">
-      <h2 className="text-sm font-semibold text-custom-text-100 mb-4">Informations generales</h2>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Nom du projet *">
-          <input
-            value={form.nom}
-            onChange={(e) => update("nom", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-          />
-        </Field>
-        <Field label="Client *">
-          <input
-            value={form.client}
-            onChange={(e) => update("client", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-          />
-        </Field>
-        <Field label="Localisation">
-          <input
-            value={form.localisation}
-            onChange={(e) => update("localisation", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-          />
-        </Field>
-        <Field label="Nature de l'AO">
-          <select
-            value={form.nature}
-            onChange={(e) => update("nature", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-          >
-            {Object.entries(NATURES).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Date de remise">
-          <input
-            type="date"
-            value={form.date_remise}
-            onChange={(e) => update("date_remise", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-          />
-        </Field>
-        <Field label="Date d'ouverture visee">
-          <input
-            type="date"
-            value={form.date_ouverture_visee}
-            onChange={(e) => update("date_ouverture_visee", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-          />
-        </Field>
+    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+        <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">📋 Informations generales</h2>
       </div>
-      <div className="mt-6 flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-4 py-2 rounded-lg bg-[#BF5D48] text-white text-sm font-medium hover:bg-[#a84d3b] disabled:opacity-50"
-        >
-          {saving ? "Enregistrement..." : "Enregistrer"}
-        </button>
+      <div className="p-6">
+        <div className="grid grid-cols-2 gap-5">
+          <Field label="Nom du projet *">
+            <input value={form.nom} onChange={(e) => update("nom", e.target.value)} className={inputCls} style={{ focusRingColor: C.terracotta } as any} />
+          </Field>
+          <Field label="Client *">
+            <input value={form.client} onChange={(e) => update("client", e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Localisation">
+            <input value={form.localisation} onChange={(e) => update("localisation", e.target.value)} placeholder="Ville, region..." className={inputCls} />
+          </Field>
+          <Field label="Nature de l'AO">
+            <select value={form.nature} onChange={(e) => update("nature", e.target.value)} className={inputCls}>
+              {Object.entries(NATURES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </Field>
+          <Field label="Date de remise">
+            <input type="date" value={form.date_remise} onChange={(e) => update("date_remise", e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Date d'ouverture visee">
+            <input type="date" value={form.date_ouverture_visee} onChange={(e) => update("date_ouverture_visee", e.target.value)} className={inputCls} />
+          </Field>
+        </div>
+        <div className="mt-6 flex justify-end">
+          <SaveButton onSave={save} toast={toast} />
+        </div>
       </div>
     </div>
   );
@@ -393,227 +482,247 @@ function TabGeneral({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: st
 
 // ─── Tab: Points de Vente ────────────────────────────────────────────────────
 
-function TabPointsDeVente({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
+function TabPointsDeVente({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [adding, setAdding] = useState(false);
-  const [newForm, setNewForm] = useState({
-    type_pdv: "self",
-    nom: "",
-    tranche_frequentation: 1,
-    couverts_jour_cible: 0,
-    jours_ouvres_mois: 20,
-  });
+  const [newForm, setNewForm] = useState({ type_pdv: "self", nom: "", tranche_frequentation: 1, couverts_jour_cible: 200, jours_ouvres_mois: 20 });
 
   const savePdv = async (pdvId: string) => {
     const resp = await fetch(`${apiBase}/projets/${projet.id}/pdv/${pdvId}/`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify(editForm),
     });
-    if (resp.ok) {
-      setEditingId(null);
-      await onSave();
-    } else {
-      alert("Erreur sauvegarde PdV");
-    }
+    if (resp.ok) { setEditingId(null); await onSave(); toast.show("PdV modifie"); }
+    else toast.show("Erreur sauvegarde PdV", "err");
   };
 
   const deletePdv = async (pdvId: string) => {
     if (!confirm("Supprimer ce point de vente ?")) return;
-    const resp = await fetch(`${apiBase}/projets/${projet.id}/pdv/${pdvId}/`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (resp.ok) await onSave();
+    const resp = await fetch(`${apiBase}/projets/${projet.id}/pdv/${pdvId}/`, { method: "DELETE", credentials: "include" });
+    if (resp.ok) { await onSave(); toast.show("PdV supprime"); }
   };
 
   const addPdv = async () => {
-    if (!newForm.nom.trim()) {
-      alert("Le nom est requis");
-      return;
-    }
+    if (!newForm.nom.trim()) { toast.show("Le nom est requis", "err"); return; }
     const resp = await fetch(`${apiBase}/projets/${projet.id}/pdv/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify(newForm),
     });
     if (resp.ok) {
       setAdding(false);
-      setNewForm({ type_pdv: "self", nom: "", tranche_frequentation: 1, couverts_jour_cible: 0, jours_ouvres_mois: 20 });
+      setNewForm({ type_pdv: "self", nom: "", tranche_frequentation: 1, couverts_jour_cible: 200, jours_ouvres_mois: 20 });
       await onSave();
-    } else {
-      alert("Erreur ajout PdV");
-    }
+      toast.show("PdV ajoute");
+    } else toast.show("Erreur ajout PdV", "err");
   };
 
-  const inputCls = "w-full px-2 py-1 rounded border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm";
+  const inputCls = "w-full px-2 py-1.5 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm";
 
   return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-custom-text-100">
-          Points de Vente ({projet.points_de_vente.length})
+    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-custom-border-200 flex items-center justify-between" style={{ background: "rgba(90,85,82,0.04)" }}>
+        <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">
+          🏢 Points de Vente ({projet.points_de_vente.length})
         </h2>
         <button
           onClick={() => setAdding(true)}
-          className="px-3 py-1.5 rounded-lg bg-[#BF5D48] text-white text-sm hover:bg-[#a84d3b]"
+          className="px-3 py-1.5 rounded-lg text-white text-sm font-medium hover:opacity-90 flex items-center gap-1"
+          style={{ background: C.terracotta }}
         >
           + Ajouter un PdV
         </button>
       </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-custom-border-200">
-            <th className="text-left px-3 py-2 text-[10px] font-semibold text-custom-text-400 uppercase">Type</th>
-            <th className="text-left px-3 py-2 text-[10px] font-semibold text-custom-text-400 uppercase">Nom</th>
-            <th className="text-left px-3 py-2 text-[10px] font-semibold text-custom-text-400 uppercase">Tranche</th>
-            <th className="text-left px-3 py-2 text-[10px] font-semibold text-custom-text-400 uppercase">Couverts/j</th>
-            <th className="text-left px-3 py-2 text-[10px] font-semibold text-custom-text-400 uppercase">Jours/mois</th>
-            <th className="px-3 py-2 w-24"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {projet.points_de_vente.map((pdv) =>
-            editingId === pdv.id ? (
-              <tr key={pdv.id} className="border-b border-custom-border-100">
-                <td className="px-3 py-2">
-                  <select value={editForm.type_pdv} onChange={(e) => setEditForm({ ...editForm, type_pdv: e.target.value })} className={inputCls}>
-                    {Object.entries(PDV_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </td>
-                <td className="px-3 py-2"><input value={editForm.nom} onChange={(e) => setEditForm({ ...editForm, nom: e.target.value })} className={inputCls} /></td>
-                <td className="px-3 py-2"><input type="number" min={1} max={9} value={editForm.tranche_frequentation} onChange={(e) => setEditForm({ ...editForm, tranche_frequentation: parseInt(e.target.value) || 1 })} className={inputCls} /></td>
-                <td className="px-3 py-2"><input type="number" value={editForm.couverts_jour_cible} onChange={(e) => setEditForm({ ...editForm, couverts_jour_cible: parseInt(e.target.value) || 0 })} className={inputCls} /></td>
-                <td className="px-3 py-2"><input type="number" value={editForm.jours_ouvres_mois} onChange={(e) => setEditForm({ ...editForm, jours_ouvres_mois: parseInt(e.target.value) || 20 })} className={inputCls} /></td>
-                <td className="px-3 py-2 flex gap-1">
-                  <button onClick={() => savePdv(pdv.id)} className="px-2 py-1 rounded bg-emerald-600 text-white text-xs">OK</button>
-                  <button onClick={() => setEditingId(null)} className="px-2 py-1 rounded border border-custom-border-200 text-custom-text-400 text-xs">X</button>
-                </td>
-              </tr>
-            ) : (
-              <tr key={pdv.id} className="border-b border-custom-border-100 hover:bg-custom-background-90/30">
-                <td className="px-3 py-2 text-custom-text-200">{pdv.type_pdv_display}</td>
-                <td className="px-3 py-2 text-custom-text-100 font-medium">{pdv.nom}</td>
-                <td className="px-3 py-2 text-custom-text-400">T{pdv.tranche_frequentation}</td>
-                <td className="px-3 py-2 text-custom-text-400">{pdv.couverts_jour_cible}</td>
-                <td className="px-3 py-2 text-custom-text-400">{pdv.jours_ouvres_mois}</td>
-                <td className="px-3 py-2 flex gap-1">
-                  <button
-                    onClick={() => { setEditingId(pdv.id); setEditForm({ type_pdv: pdv.type_pdv, nom: pdv.nom, tranche_frequentation: pdv.tranche_frequentation, couverts_jour_cible: pdv.couverts_jour_cible, jours_ouvres_mois: pdv.jours_ouvres_mois }); }}
-                    className="px-2 py-1 rounded border border-custom-border-200 text-custom-text-400 text-xs hover:text-custom-text-200"
-                  >
-                    Editer
-                  </button>
-                  <button
-                    onClick={() => deletePdv(pdv.id)}
-                    className="px-2 py-1 rounded border border-custom-border-200 text-red-400 text-xs hover:bg-red-500/10"
-                  >
-                    Suppr
-                  </button>
-                </td>
-              </tr>
-            )
-          )}
-          {adding && (
-            <tr className="border-b border-custom-border-100 bg-custom-background-90/20">
-              <td className="px-3 py-2">
-                <select value={newForm.type_pdv} onChange={(e) => setNewForm({ ...newForm, type_pdv: e.target.value })} className={inputCls}>
-                  {Object.entries(PDV_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </td>
-              <td className="px-3 py-2"><input value={newForm.nom} onChange={(e) => setNewForm({ ...newForm, nom: e.target.value })} placeholder="Nom du PdV" className={inputCls} /></td>
-              <td className="px-3 py-2"><input type="number" min={1} max={9} value={newForm.tranche_frequentation} onChange={(e) => setNewForm({ ...newForm, tranche_frequentation: parseInt(e.target.value) || 1 })} className={inputCls} /></td>
-              <td className="px-3 py-2"><input type="number" value={newForm.couverts_jour_cible} onChange={(e) => setNewForm({ ...newForm, couverts_jour_cible: parseInt(e.target.value) || 0 })} className={inputCls} /></td>
-              <td className="px-3 py-2"><input type="number" value={newForm.jours_ouvres_mois} onChange={(e) => setNewForm({ ...newForm, jours_ouvres_mois: parseInt(e.target.value) || 20 })} className={inputCls} /></td>
-              <td className="px-3 py-2 flex gap-1">
-                <button onClick={addPdv} className="px-2 py-1 rounded bg-emerald-600 text-white text-xs">OK</button>
-                <button onClick={() => setAdding(false)} className="px-2 py-1 rounded border border-custom-border-200 text-custom-text-400 text-xs">X</button>
-              </td>
-            </tr>
-          )}
-          {projet.points_de_vente.length === 0 && !adding && (
-            <tr>
-              <td colSpan={6} className="px-3 py-8 text-center text-custom-text-400 text-sm">
-                Aucun point de vente. Cliquez "+ Ajouter un PdV" pour commencer.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <div className="p-4 space-y-2.5">
+        {projet.points_de_vente.map((pdv) =>
+          editingId === pdv.id ? (
+            <div key={pdv.id} className="p-4 rounded-xl border-2 border-dashed border-custom-border-300 bg-custom-background-90/30">
+              <div className="grid grid-cols-5 gap-3 mb-3">
+                <Field label="Type"><select value={editForm.type_pdv} onChange={(e) => setEditForm({ ...editForm, type_pdv: e.target.value })} className={inputCls}>{Object.entries(PDV_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+                <Field label="Nom"><input value={editForm.nom} onChange={(e) => setEditForm({ ...editForm, nom: e.target.value })} className={inputCls} /></Field>
+                <Field label="Tranche"><input type="number" min={1} max={9} value={editForm.tranche_frequentation} onChange={(e) => setEditForm({ ...editForm, tranche_frequentation: parseInt(e.target.value) || 1 })} className={inputCls} /></Field>
+                <Field label="Couverts/j"><input type="number" value={editForm.couverts_jour_cible} onChange={(e) => setEditForm({ ...editForm, couverts_jour_cible: parseInt(e.target.value) || 0 })} className={inputCls} /></Field>
+                <Field label="Jours/mois"><input type="number" value={editForm.jours_ouvres_mois} onChange={(e) => setEditForm({ ...editForm, jours_ouvres_mois: parseInt(e.target.value) || 20 })} className={inputCls} /></Field>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => savePdv(pdv.id)} className="px-3 py-1.5 rounded-lg text-white text-xs font-medium" style={{ background: C.chlorophyle }}>Valider</button>
+                <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs">Annuler</button>
+              </div>
+            </div>
+          ) : (
+            <div
+              key={pdv.id}
+              className="grid items-center gap-4 p-3.5 rounded-xl border border-custom-border-200 bg-custom-background-100 hover:border-custom-border-300 transition-all group"
+              style={{ gridTemplateColumns: "56px 1fr auto auto" }}
+            >
+              {/* Icon */}
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: C.terracottaBg }}>
+                {PDV_ICONS[pdv.type_pdv] || "🍽️"}
+              </div>
+              {/* Name + Type */}
+              <div>
+                <div className="font-semibold text-sm text-custom-text-100">{pdv.nom || PDV_LABELS[pdv.type_pdv]}</div>
+                <div className="text-xs text-custom-text-400">{PDV_LABELS[pdv.type_pdv]}</div>
+              </div>
+              {/* Stats */}
+              <div className="flex items-center gap-5">
+                <TrancheBadge tranche={pdv.tranche_frequentation} />
+                <div className="text-center min-w-[50px]">
+                  <div className="text-lg font-bold text-custom-text-100 leading-none">{pdv.couverts_jour_cible || "\u2014"}</div>
+                  <div className="text-[10px] text-custom-text-400 uppercase tracking-wider mt-0.5">couv/j</div>
+                </div>
+                <div className="text-center min-w-[40px]">
+                  <div className="text-lg font-bold text-custom-text-100 leading-none">{pdv.jours_ouvres_mois}</div>
+                  <div className="text-[10px] text-custom-text-400 uppercase tracking-wider mt-0.5">j/mois</div>
+                </div>
+              </div>
+              {/* Actions */}
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => { setEditingId(pdv.id); setEditForm({ type_pdv: pdv.type_pdv, nom: pdv.nom, tranche_frequentation: pdv.tranche_frequentation, couverts_jour_cible: pdv.couverts_jour_cible, jours_ouvres_mois: pdv.jours_ouvres_mois }); }}
+                  className="p-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs hover:text-custom-text-200 hover:bg-custom-background-90/50"
+                  title="Modifier"
+                >
+                  ✎
+                </button>
+                <button
+                  onClick={() => deletePdv(pdv.id)}
+                  className="p-1.5 rounded-lg border border-custom-border-200 text-red-400 text-xs hover:bg-red-500/10"
+                  title="Supprimer"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* Add form */}
+        {adding && (
+          <div className="p-4 rounded-xl border-2 border-dashed bg-custom-background-90/20" style={{ borderColor: C.terracotta }}>
+            <div className="text-xs font-semibold text-custom-text-200 mb-3">Nouveau Point de Vente</div>
+            <div className="grid grid-cols-5 gap-3 mb-3">
+              <Field label="Type"><select value={newForm.type_pdv} onChange={(e) => setNewForm({ ...newForm, type_pdv: e.target.value })} className={inputCls}>{Object.entries(PDV_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+              <Field label="Nom"><input value={newForm.nom} onChange={(e) => setNewForm({ ...newForm, nom: e.target.value })} placeholder="Nom du PdV" className={inputCls} /></Field>
+              <Field label="Tranche"><input type="number" min={1} max={9} value={newForm.tranche_frequentation} onChange={(e) => setNewForm({ ...newForm, tranche_frequentation: parseInt(e.target.value) || 1 })} className={inputCls} /></Field>
+              <Field label="Couverts/j"><input type="number" value={newForm.couverts_jour_cible} onChange={(e) => setNewForm({ ...newForm, couverts_jour_cible: parseInt(e.target.value) || 0 })} className={inputCls} /></Field>
+              <Field label="Jours/mois"><input type="number" value={newForm.jours_ouvres_mois} onChange={(e) => setNewForm({ ...newForm, jours_ouvres_mois: parseInt(e.target.value) || 20 })} className={inputCls} /></Field>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={addPdv} className="px-3 py-1.5 rounded-lg text-white text-xs font-medium" style={{ background: C.chlorophyle }}>Ajouter</button>
+              <button onClick={() => setAdding(false)} className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs">Annuler</button>
+            </div>
+          </div>
+        )}
+
+        {projet.points_de_vente.length === 0 && !adding && (
+          <div className="text-center py-12 text-custom-text-400">
+            <div className="text-3xl mb-2">🏢</div>
+            <p className="text-sm">Aucun point de vente</p>
+            <p className="text-xs mt-1">Cliquez "+ Ajouter un PdV" pour commencer</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TrancheBadge({ tranche }: { tranche: number }) {
+  const style = tranche <= 3
+    ? { bg: C.saugeBg, color: C.sauge }
+    : tranche <= 6
+      ? { bg: C.terracottaBg, color: C.terracotta }
+      : { bg: C.chlorophyleBg, color: C.chlorophyle };
+
+  return (
+    <div className="flex flex-col items-center px-3 py-1.5 rounded-lg" style={{ background: style.bg }}>
+      <span className="text-base font-bold leading-none" style={{ color: style.color }}>T{tranche}</span>
+      <span className="text-[9px] uppercase tracking-widest mt-0.5 opacity-80" style={{ color: style.color }}>tranche</span>
     </div>
   );
 }
 
 // ─── Tab: Mode de Gestion ────────────────────────────────────────────────────
 
-function TabModeGestion({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
+function TabModeGestion({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
   const [selected, setSelected] = useState(projet.mode_gestion);
   const [horaires, setHoraires] = useState(projet.horaires_service);
-  const [saving, setSaving] = useState(false);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ mode_gestion: selected, horaires_service: horaires }),
-      });
-      if (resp.ok) await onSave();
-      else alert("Erreur sauvegarde");
-    } finally {
-      setSaving(false);
-    }
+  const save = async () => {
+    const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ mode_gestion: selected, horaires_service: horaires }),
+    });
+    if (resp.ok) await onSave();
+    else throw new Error("save failed");
   };
 
   return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-6">
-      <h2 className="text-sm font-semibold text-custom-text-100 mb-4">Mode de gestion</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-        {Object.entries(MODES_GESTION).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setSelected(key)}
-            className={`p-4 rounded-xl border text-left text-sm transition-all ${
-              selected === key
-                ? "border-[#BF5D48] bg-[#BF5D48]/10 text-custom-text-100 ring-1 ring-[#BF5D48]"
-                : "border-custom-border-200 bg-custom-background-90 text-custom-text-300 hover:border-custom-border-300"
-            }`}
-          >
-            <div className="font-medium">{label}</div>
-          </button>
-        ))}
+    <div className="space-y-6">
+      {/* Mode de gestion */}
+      <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+          <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">📊 Mode de gestion</h2>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {MODES.map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setSelected(mode.id)}
+                className={`p-5 rounded-xl border-2 text-left transition-all relative ${
+                  selected === mode.id ? "shadow-md" : "hover:shadow-sm"
+                }`}
+                style={{
+                  borderColor: selected === mode.id ? C.terracotta : "var(--color-border-200, rgba(90,85,82,0.15))",
+                  background: selected === mode.id ? C.terracottaBg : "var(--color-background-100, #2a2725)",
+                  transform: selected === mode.id ? "translateY(-2px)" : "none",
+                }}
+              >
+                {selected === mode.id && (
+                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: C.terracotta }}>
+                    ✓
+                  </div>
+                )}
+                <div className="text-2xl mb-2">{mode.icon}</div>
+                <div className="font-semibold text-sm text-custom-text-100 mb-1.5">{mode.name}</div>
+                <div className="text-xs text-custom-text-400 leading-relaxed mb-3">{mode.desc}</div>
+                <div className="text-[11px] pt-2.5 border-t border-dashed border-custom-border-200">
+                  <span style={{ color: C.terracotta, fontWeight: 600 }}>💡 Ideal pour : </span>
+                  <span className="text-custom-text-400">{mode.tip}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <h2 className="text-sm font-semibold text-custom-text-100 mb-4">Horaires de service</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        {Object.entries(HORAIRES).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setHoraires(key)}
-            className={`p-3 rounded-xl border text-center text-sm transition-all ${
-              horaires === key
-                ? "border-[#BF5D48] bg-[#BF5D48]/10 text-custom-text-100 ring-1 ring-[#BF5D48]"
-                : "border-custom-border-200 bg-custom-background-90 text-custom-text-300 hover:border-custom-border-300"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-4 py-2 rounded-lg bg-[#BF5D48] text-white text-sm font-medium hover:bg-[#a84d3b] disabled:opacity-50"
-        >
-          {saving ? "Enregistrement..." : "Enregistrer"}
-        </button>
+      {/* Horaires */}
+      <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+          <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">🕐 Horaires de service</h2>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {Object.entries(HORAIRES).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setHoraires(key)}
+                className="p-3.5 rounded-xl border-2 text-center text-sm font-medium transition-all"
+                style={{
+                  borderColor: horaires === key ? C.terracotta : "var(--color-border-200, rgba(90,85,82,0.15))",
+                  background: horaires === key ? C.terracottaBg : "var(--color-background-90, #242220)",
+                  color: horaires === key ? C.terracotta : "var(--color-text-300, #a09a94)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-6 flex justify-end">
+            <SaveButton onSave={save} toast={toast} />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -621,7 +730,7 @@ function TabModeGestion({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase
 
 // ─── Tab: Scoring CCTP ───────────────────────────────────────────────────────
 
-function TabScoring({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
+function TabScoring({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
   const [scores, setScores] = useState({
     scoring_concept_pct: projet.scoring_concept_pct,
     scoring_rh_pct: projet.scoring_rh_pct,
@@ -629,66 +738,73 @@ function TabScoring({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: st
     scoring_rse_pct: projet.scoring_rse_pct,
     scoring_prix_pct: projet.scoring_prix_pct,
   });
-  const [saving, setSaving] = useState(false);
 
   const total = scores.scoring_concept_pct + scores.scoring_rh_pct + scores.scoring_qualite_pct + scores.scoring_rse_pct + scores.scoring_prix_pct;
   const isValid = total === 100;
 
-  const handleSave = async () => {
-    if (!isValid) { alert("Le total doit faire 100%"); return; }
-    setSaving(true);
-    try {
-      const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(scores),
-      });
-      if (resp.ok) await onSave();
-      else alert("Erreur sauvegarde");
-    } finally {
-      setSaving(false);
-    }
+  const save = async () => {
+    if (!isValid) throw new Error("Total != 100%");
+    const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify(scores),
+    });
+    if (resp.ok) await onSave();
+    else throw new Error("save failed");
   };
 
-  const scoreFields = [
-    { key: "scoring_prix_pct" as const, label: "Prix" },
-    { key: "scoring_concept_pct" as const, label: "Concept" },
-    { key: "scoring_rh_pct" as const, label: "RH" },
-    { key: "scoring_rse_pct" as const, label: "RSE" },
-    { key: "scoring_qualite_pct" as const, label: "Qualite" },
-  ];
-
   return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-6">
-      <h2 className="text-sm font-semibold text-custom-text-100 mb-4">Ponderation du scoring CCTP</h2>
-      <div className="space-y-4 max-w-md">
-        {scoreFields.map(({ key, label }) => (
-          <div key={key} className="flex items-center gap-4">
-            <label className="w-20 text-sm text-custom-text-200">{label}</label>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={scores[key]}
-              onChange={(e) => setScores({ ...scores, [key]: parseInt(e.target.value) })}
-              className="flex-1"
-            />
-            <span className="w-12 text-right text-sm font-medium text-custom-text-100">{scores[key]}%</span>
+    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+        <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">🎯 Ponderation du scoring CCTP</h2>
+      </div>
+      <div className="p-6">
+        <div className="space-y-5 max-w-lg">
+          {SCORE_FIELDS.map(({ key, label, icon, color, bg }) => (
+            <div key={key}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-base">{icon}</span>
+                <span className="flex-1 text-sm font-medium text-custom-text-200">{label}</span>
+                <span className="text-lg font-bold min-w-[48px] text-right" style={{ color }}>{scores[key]}%</span>
+              </div>
+              <div className="relative">
+                <div className="absolute inset-0 h-2 rounded-full top-[10px]" style={{ background: "rgba(90,85,82,0.12)" }} />
+                <div className="absolute h-2 rounded-full top-[10px] transition-all" style={{ background: color, width: `${scores[key]}%` }} />
+                <input
+                  type="range"
+                  min={0} max={100} step={5}
+                  value={scores[key]}
+                  onChange={(e) => setScores({ ...scores, [key]: parseInt(e.target.value) })}
+                  className="relative w-full z-10"
+                  style={{ background: "transparent" }}
+                />
+                <style>{`
+                  input[type="range"]::-webkit-slider-thumb { background: ${color}; }
+                `}</style>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Stacked bar */}
+        <div className="mt-8 p-4 rounded-xl border border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+          <div className="flex h-7 rounded-lg overflow-hidden mb-2.5">
+            {SCORE_FIELDS.map(({ key, color }) => (
+              <div
+                key={key}
+                className="transition-all duration-300"
+                style={{ width: `${scores[key]}%`, background: color }}
+                title={`${key}: ${scores[key]}%`}
+              />
+            ))}
           </div>
-        ))}
-      </div>
-      <div className={`mt-4 text-sm font-semibold ${isValid ? "text-emerald-400" : "text-red-400"}`}>
-        Total : {total}% {isValid ? "" : "(doit faire 100%)"}
-      </div>
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving || !isValid}
-          className="px-4 py-2 rounded-lg bg-[#BF5D48] text-white text-sm font-medium hover:bg-[#a84d3b] disabled:opacity-50"
-        >
-          {saving ? "Enregistrement..." : "Enregistrer"}
-        </button>
+          <div className={`text-sm font-semibold text-center ${isValid ? "" : ""}`} style={{ color: isValid ? C.chlorophyle : C.terracotta }}>
+            Total : {total}% {isValid ? " \u2713" : " (doit faire 100%)"}
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end">
+          <SaveButton onSave={save} disabled={!isValid} toast={toast} />
+        </div>
       </div>
     </div>
   );
@@ -696,62 +812,129 @@ function TabScoring({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: st
 
 // ─── Tab: Documents ──────────────────────────────────────────────────────────
 
-function TabDocuments({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
-  const [uploading, setUploading] = useState(false);
+function TabDocuments({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
+  const docs = [
+    { key: "cctp_pdf", label: "CCTP / Cahier des charges", icon: "📋", required: true },
+  ];
 
-  const uploadCctp = async (file: File) => {
+  return (
+    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+        <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">📄 Documents du projet</h2>
+      </div>
+      <div className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {docs.map((doc) => (
+            <DocUploadZone
+              key={doc.key}
+              projet={projet}
+              apiBase={apiBase}
+              field={doc.key}
+              label={doc.label}
+              icon={doc.icon}
+              required={doc.required}
+              currentFile={(projet as any)[doc.key]}
+              onSave={onSave}
+              toast={toast}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DocUploadZone({
+  projet, apiBase, field, label, icon, required, currentFile, onSave, toast,
+}: {
+  projet: ProjetAO; apiBase: string; field: string; label: string; icon: string;
+  required?: boolean; currentFile: string | null; onSave: () => void; toast: ToastHandle;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (file: File) => {
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("cctp_pdf", file);
+      formData.append(field, file);
       const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
-        method: "PATCH",
-        credentials: "include",
-        body: formData,
+        method: "PATCH", credentials: "include", body: formData,
       });
-      if (resp.ok) await onSave();
-      else alert("Erreur upload");
+      if (resp.ok) { await onSave(); toast.show("Document uploade"); }
+      else toast.show("Erreur upload", "err");
     } finally {
       setUploading(false);
     }
   };
 
-  return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-6">
-      <h2 className="text-sm font-semibold text-custom-text-100 mb-4">Documents du projet</h2>
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.type === "application/pdf") upload(file);
+    else toast.show("PDF uniquement", "err");
+  };
 
-      <div className="space-y-4">
-        {/* CCTP PDF */}
-        <div className="rounded-lg border border-custom-border-200 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <div className="text-sm font-medium text-custom-text-100">CCTP / Cahier des charges</div>
-              <div className="text-xs text-custom-text-400">
-                {projet.cctp_pdf ? "Document charge" : "Aucun document"}
-              </div>
-            </div>
-            <label className="px-3 py-1.5 rounded-lg bg-[#BF5D48] text-white text-sm cursor-pointer hover:bg-[#a84d3b]">
-              {uploading ? "Upload..." : projet.cctp_pdf ? "Remplacer" : "Uploader"}
-              <input
-                type="file"
-                accept=".pdf"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) uploadCctp(file);
-                }}
-              />
+  return (
+    <div className="rounded-xl border border-custom-border-200 p-5">
+      <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-custom-border-200">
+        <span className="text-xl">{icon}</span>
+        <span className="text-sm font-medium text-custom-text-100 flex-1">
+          {label}
+          {required && <span style={{ color: C.terracotta }}> *</span>}
+        </span>
+      </div>
+
+      {currentFile ? (
+        <div>
+          <div className="rounded-lg border border-custom-border-200 overflow-hidden mb-3">
+            <iframe src={currentFile} className="w-full h-52 border-none block" title={label} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <a
+              href={currentFile}
+              download
+              className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs hover:text-custom-text-200 no-underline inline-flex items-center gap-1"
+            >
+              ⬇ Telecharger
+            </a>
+            <label className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs hover:text-custom-text-200 cursor-pointer inline-flex items-center gap-1">
+              🔄 Remplacer
+              <input ref={inputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
             </label>
           </div>
-          {projet.cctp_pdf && (
-            <iframe
-              src={projet.cctp_pdf}
-              className="w-full h-96 rounded border border-custom-border-200"
-              title="CCTP Preview"
-            />
+        </div>
+      ) : (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+          className="py-10 px-6 rounded-xl text-center cursor-pointer transition-all border-2 border-dashed"
+          style={{
+            borderColor: dragging ? C.terracotta : "var(--color-border-200, rgba(90,85,82,0.15))",
+            background: dragging ? C.terracottaBg : "transparent",
+          }}
+        >
+          <input ref={inputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+          {uploading ? (
+            <div className="flex flex-col items-center gap-2">
+              <span className="inline-block w-6 h-6 border-2 border-custom-text-400/30 rounded-full animate-spin" style={{ borderTopColor: C.terracotta }} />
+              <span className="text-sm text-custom-text-400">Upload en cours...</span>
+            </div>
+          ) : (
+            <>
+              <div className="text-3xl mb-2">📄</div>
+              <div className="text-sm font-medium text-custom-text-200 mb-1">
+                {dragging ? "Deposer ici" : "Glisser-deposer ou cliquer"}
+              </div>
+              <div className="text-xs text-custom-text-400">PDF uniquement · 10 Mo max</div>
+            </>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -761,7 +944,7 @@ function TabDocuments({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-custom-text-400 mb-1">{label}</label>
+      <label className="block text-[11px] font-semibold text-custom-text-400 uppercase tracking-wide mb-1.5">{label}</label>
       {children}
     </div>
   );
