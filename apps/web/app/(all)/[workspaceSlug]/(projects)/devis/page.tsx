@@ -50,6 +50,7 @@ const TABS = [
   { key: "ordered", label: "Commandés" },
   { key: "rejected", label: "Rejetés" },
   { key: "draft", label: "Brouillons" },
+  { key: "archived", label: "📦 Archives" },
 ];
 
 function StatusChip({ statut, label }: { statut: string; label: string }) {
@@ -138,7 +139,8 @@ export default function DevisPage() {
   // Filtered devis
   const filteredDevis = useMemo(() => {
     let list = devisList;
-    if (activeTab !== "all") list = list.filter((d) => d.statut === activeTab);
+    if (activeTab === "all") list = list.filter((d) => d.statut !== "archived");
+    else list = list.filter((d) => d.statut === activeTab);
     if (search) {
       const q = search.toLowerCase();
       list = list.filter((d) => d.nom.toLowerCase().includes(q) || d.reference.toLowerCase().includes(q) || d.fournisseur_nom.toLowerCase().includes(q));

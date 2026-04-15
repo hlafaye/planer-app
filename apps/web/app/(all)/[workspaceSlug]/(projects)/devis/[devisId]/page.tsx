@@ -168,6 +168,22 @@ export default function DevisDetailPage() {
           <div className="flex items-center gap-2">
             {editMode ? (
               <>
+                <button
+                  onClick={async () => {
+                    if (!confirm("Archiver ce devis ? Il sera déplacé dans les archives.")) return;
+                    if (!projectId) return;
+                    await fetch(`/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/devis/${devisId}/`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "include",
+                      body: JSON.stringify({ statut: "archived" }),
+                    });
+                    router.push(`/${workspaceSlug}/devis`);
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-red-500/30 text-xs text-red-400 hover:bg-red-500/10"
+                >
+                  🗑 Archiver
+                </button>
                 <button onClick={() => setEditMode(false)} className="px-3 py-1.5 rounded-lg text-xs text-custom-text-300 hover:bg-custom-background-90">Annuler</button>
                 <button onClick={handleSave} className="px-3 py-1.5 rounded-lg bg-[#BF5D48] text-white text-xs font-medium hover:bg-[#a84d3b]">✓ Enregistrer</button>
               </>
