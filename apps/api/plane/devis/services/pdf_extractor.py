@@ -90,20 +90,33 @@ def extract_devis_from_pdf(pdf_bytes):
         "Texte OCR du devis:\n---\n" + text[:4500] + "\n---\n\nJSON:"
     )
 
+    def _call_ollama(p, retries=1):
+        """Call Ollama with retry on timeout (cold start)."""
+        for attempt in range(retries + 1):
+            try:
+                r = requests.post(
+                    "{}/api/generate".format(OLLAMA_URL),
+                    json={
+                        "model": "llama3.1:8b",
+                        "prompt": p,
+                        "stream": False,
+                        "format": "json",
+                        "keep_alive": "30m",
+                        "options": {"temperature": 0.1, "num_predict": 1000, "num_ctx": 4096},
+                    },
+                    timeout=180,
+                )
+                r.raise_for_status()
+                return r.json()
+            except requests.Timeout:
+                if attempt < retries:
+                    logger.warning("Ollama timeout attempt %d, retrying...", attempt + 1)
+                    continue
+                raise
+        return None
+
     try:
-        response = requests.post(
-            "{}/api/generate".format(OLLAMA_URL),
-            json={
-                "model": "llama3.1:8b",
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.1, "num_predict": 1500},
-            },
-            timeout=120,
-        )
-        response.raise_for_status()
-        data = response.json()
+        data = _call_ollama(prompt)
         raw_response = data.get("response", "")
 
         # Try to parse JSON, with cleanup for common issues

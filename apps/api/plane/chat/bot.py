@@ -327,11 +327,11 @@ class PlainerBot:
     @staticmethod
     def _call_ollama(model: str, prompt: str, images: list = None) -> str:
         """Call Ollama API synchronously."""
-        payload = {"model": model, "prompt": prompt, "stream": False}
+        payload = {"model": model, "prompt": prompt, "stream": False, "keep_alive": "30m"}
         if images:
             payload["images"] = images
 
-        with httpx.Client(timeout=120) as client:
+        with httpx.Client(timeout=180) as client:
             resp = client.post(f"{OLLAMA_URL}/api/generate", json=payload)
             resp.raise_for_status()
             return resp.json().get("response", "").strip()
