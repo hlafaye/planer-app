@@ -89,6 +89,16 @@ class Devis(BaseModel):
     pdf_original = models.FileField(upload_to="devis/", null=True, blank=True)
     donnees_ocr = models.JSONField(default=dict, blank=True)
 
+    # Validation state
+    validation_rule = models.ForeignKey(
+        "ValidationRule", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="devis_en_validation",
+    )
+    validation_step = models.IntegerField(default=0)
+    current_validators = models.ManyToManyField(
+        "db.User", blank=True, related_name="devis_a_valider",
+    )
+
     class Meta:
         db_table = "devis_devis"
         ordering = ["-created_at"]

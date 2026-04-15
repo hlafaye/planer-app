@@ -35,6 +35,9 @@ class DevisSerializer(serializers.ModelSerializer):
     actions = ValidationActionSerializer(many=True, read_only=True)
     statut_display = serializers.CharField(source="get_statut_display", read_only=True)
     type_display = serializers.CharField(source="get_type_devis_display", read_only=True)
+    can_approve = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+    validation_chain = serializers.SerializerMethodField()
 
     class Meta:
         model = Devis
@@ -48,7 +51,7 @@ class DevisSerializer(serializers.ModelSerializer):
             "date_devis", "date_livraison_prevue", "date_livraison_reelle",
             "statut", "statut_display",
             "issue_liee", "pdf_original", "donnees_ocr",
-            "actions",
+            "actions", "can_approve", "can_edit", "validation_chain",
             "created_at", "updated_at",
         ]
         extra_kwargs = {
@@ -61,6 +64,42 @@ class DevisSerializer(serializers.ModelSerializer):
             "id", "reference", "tva_montant", "montant_ttc",
             "created_at", "updated_at",
         ]
+
+    def get_can_approve(self, devis):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return (
+            devis.statut == "pending"
+            and devis.current_validators.filter(id=request.user.id).exists()
+        )
+
+    def get_can_edit(self, devis):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return devis.statut in ("draft", "modif_requested", "rejected")
+
+    def get_validation_chain(self, devis):
+        if not devis.validation_rule:
+            return []
+        validators = list(devis.validation_rule.validators.all().order_by("id"))
+        approved_users = set(
+            devis.actions.filter(action="approve").values_list("from_user_id", flat=True)
+        )
+        current_ids = set(devis.current_validators.values_list("id", flat=True))
+        chain = []
+        for i, v in enumerate(validators):
+            chain.append({
+                "user": {"id": str(v.id), "name": v.display_name or v.email},
+                "position": i + 1,
+                "status": (
+                    "approved" if v.id in approved_users
+                    else "current" if v.id in current_ids
+                    else "pending"
+                ),
+            })
+        return chain
 
 
 class DevisListSerializer(serializers.ModelSerializer):

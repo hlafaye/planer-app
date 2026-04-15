@@ -199,18 +199,21 @@ export default function DevisDetailPage() {
                 Envoyer en validation →
               </button>
             )}
-            {devis.statut === "pending" && (
+            {devis.can_approve && (
               <>
                 <button onClick={() => handleAction("approve")} disabled={actioning} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50">
                   ✓ Approuver
                 </button>
                 <button onClick={() => handleAction("request_modif")} disabled={actioning} className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-xs text-custom-text-300 hover:bg-custom-background-90 disabled:opacity-50">
-                  Modifier
+                  Demander modif
                 </button>
                 <button onClick={() => handleAction("reject")} disabled={actioning} className="px-3 py-1.5 rounded-lg border border-red-500/30 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50">
                   Rejeter
                 </button>
               </>
+            )}
+            {devis.statut === "pending" && !devis.can_approve && (
+              <span className="text-xs text-custom-text-400 italic">En attente d'un validateur</span>
             )}
             {(devis.statut === "rejected" || devis.statut === "modif_requested") && (
               <button onClick={() => handleAction("resubmit")} disabled={actioning} className="px-3 py-1.5 rounded-lg bg-[#BF5D48] text-white text-xs font-medium hover:bg-[#a84d3b] disabled:opacity-50">
@@ -297,6 +300,31 @@ export default function DevisDetailPage() {
             </div>
           </div>
         </div>
+        )}
+
+        {/* Validation chain */}
+        {devis.validation_chain && devis.validation_chain.length > 0 && (
+          <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-5 shadow-sm mb-6">
+            <h3 className="text-sm font-semibold text-custom-text-100 mb-4">🔗 Circuit de validation</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2 py-1 rounded text-xs bg-custom-background-90 text-custom-text-200">Créateur</span>
+              {devis.validation_chain.map((step: any, i: number) => (
+                <span key={step.user.id}>
+                  <span className="text-custom-text-400 mx-1">→</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    step.status === "approved" ? "bg-emerald-500/10 text-emerald-400" :
+                    step.status === "current" ? "bg-[#BF5D48]/10 text-[#BF5D48] animate-pulse" :
+                    "bg-custom-background-90 text-custom-text-400"
+                  }`}>
+                    {step.status === "approved" ? "✓ " : step.status === "current" ? "⏳ " : ""}
+                    {step.user.name}
+                  </span>
+                </span>
+              ))}
+              <span className="text-custom-text-400 mx-1">→</span>
+              <span className="px-2 py-1 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400">✅ Approuvé</span>
+            </div>
+          </div>
         )}
 
         {/* PDF Preview */}

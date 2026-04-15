@@ -107,49 +107,42 @@ class ValidationRuleViewSet(DevisAuthMixin, ModelViewSet):
 
 
 class DevisActionView(DevisAuthMixin, APIView):
-    """Submit, approve, reject, request modification on a devis."""
+    """Submit, approve, reject, request modification on a devis — uses ValidationEngine."""
 
     def post(self, request, workspace_slug, project_id, devis_id):
+        from django.core.exceptions import PermissionDenied as DjangoPermDenied
+        from django.core.exceptions import ValidationError as DjangoValError
+        from plane.devis.services.validation_engine import ValidationEngine
+
         devis = Devis.objects.get(id=devis_id, project_id=project_id)
         action = request.data.get("action")
         comment = request.data.get("comment", "")
 
-        valid_actions = ["submit", "approve", "reject", "request_modif", "resubmit"]
-        if action not in valid_actions:
-            return Response(
-                {"error": "Action invalide. Choix: {}".format(", ".join(valid_actions))},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # State machine
-        transitions = {
-            "submit": {"from": ["draft", "modif_requested"], "to": "pending"},
-            "approve": {"from": ["pending"], "to": "approved"},
-            "reject": {"from": ["pending"], "to": "rejected"},
-            "request_modif": {"from": ["pending"], "to": "modif_requested"},
-            "resubmit": {"from": ["rejected", "modif_requested"], "to": "pending"},
+        handlers = {
+            "submit": lambda: ValidationEngine.submit(devis, request.user),
+            "resubmit": lambda: ValidationEngine.submit(devis, request.user),
+            "approve": lambda: ValidationEngine.approve(devis, request.user, comment),
+            "reject": lambda: ValidationEngine.reject(devis, request.user, comment),
+            "request_modif": lambda: ValidationEngine.request_modification(devis, request.user, comment),
         }
 
-        transition = transitions.get(action)
-        if devis.statut not in transition["from"]:
+        handler = handlers.get(action)
+        if not handler:
             return Response(
-                {"error": "Transition impossible: {} -> {}".format(devis.statut, action)},
+                {"error": "Action invalide: {}".format(action)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Create action record
-        ValidationAction.objects.create(
-            devis=devis,
-            action=action,
-            from_user=request.user,
-            comment=comment,
-        )
-
-        # Update devis status
-        devis.statut = transition["to"]
-        devis.save(update_fields=["statut", "updated_at"])
-
-        return Response(DevisSerializer(devis).data)
+        try:
+            handler()
+            devis.refresh_from_db()
+            return Response(DevisSerializer(devis, context={"request": request}).data)
+        except DjangoPermDenied as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except DjangoValError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class DevisStatsView(DevisAuthMixin, APIView):
