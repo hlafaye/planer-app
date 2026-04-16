@@ -211,7 +211,9 @@ export default function ProjetAODetailPage() {
     { key: "pdv", label: `Points de Vente (${projet.points_de_vente.length})`, icon: "\uD83C\uDFE2" },
     { key: "gestion", label: "Mode de gestion", icon: "\uD83D\uDCCA" },
     { key: "scoring", label: "Scoring CCTP", icon: "\uD83C\uDFAF" },
+    { key: "scenarios", label: "Scenarios & Simulation", icon: "\u2728" },
     { key: "docs", label: "Documents", icon: "\uD83D\uDCC4" },
+    { key: "generation", label: "Generation", icon: "\uD83D\uDCE6" },
   ];
 
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
@@ -316,7 +318,9 @@ export default function ProjetAODetailPage() {
         {activeTab === "pdv" && <TabPointsDeVente projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
         {activeTab === "gestion" && <TabModeGestion projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
         {activeTab === "scoring" && <TabScoring projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
+        {activeTab === "scenarios" && <TabScenarios projet={projet} apiBase={apiBase} toast={toast} />}
         {activeTab === "docs" && <TabDocuments projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
+        {activeTab === "generation" && <TabGeneration projet={projet} apiBase={apiBase} toast={toast} />}
       </div>
     </div>
   );
@@ -935,6 +939,479 @@ function DocUploadZone({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Tab: Scenarios & Simulation ─────────────────────────────────────────────
+
+type SimResult = {
+  activity: { couverts_mois: number; couverts_annuel: number; ca_mensuel: number; ca_annuel: number };
+  staffing: { etp_total: number; masse_chargee_mensuelle: number; masse_chargee_annuelle: number; detail_postes: any[] };
+  matiere: { cout_matiere_mensuel: number; cout_par_couvert: number; niveau_prix: string };
+  fg: { fg_mensuel: number; fg_annuel: number; sous_totaux: Record<string, number> };
+  invest: { invest_total: number; amortissement_mensuel: number };
+  pl: {
+    ca_total: number; ca_total_annuel: number; cout_matiere: number; masse_salariale: number;
+    frais_generaux: number; amortissements: number; total_charges: number;
+    resultat: number; resultat_annuel: number; marge_pct: number; marge_par_couvert: number;
+    ratio_matiere_pct: number; ratio_personnel_pct: number; ratio_fg_pct: number;
+  };
+  kpis: { cout_par_couvert: number; prix_moyen_plateau: number; seuil_rentabilite_couverts: number };
+  score_estime: { total: number; prix: number; concept: number; rh: number; rse: number; qualite: number };
+  _elapsed_ms?: number;
+};
+
+function TabScenarios({ projet, apiBase, toast }: { projet: ProjetAO; apiBase: string; toast: ToastHandle }) {
+  const [params, setParams] = useState<any>({
+    niveau_prix: "prix_standard",
+    prix_admission: 6.50,
+    prix_admission_ext: 8.00,
+    prix_plateau_moyen: 8.50,
+    prix_vente_bpu: 6.00,
+    pct_externes: 0.20,
+    penetration: 0.90,
+    saisonnalite: 1.0,
+    mutualisation: "none",
+    subvention_employeur_pct: 0.40,
+    marge_gestion_pct: 0.06,
+  });
+  const [sim, setSim] = useState<SimResult | null>(null);
+  const [simulating, setSimulating] = useState(false);
+  const [scenarios, setScenarios] = useState<any[]>([]);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("");
+  const [newScenarioName, setNewScenarioName] = useState("");
+
+  // Load scenarios
+  useEffect(() => {
+    fetch(`${apiBase}/projets/${projet.id}/scenarios/`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : data.results || [];
+        setScenarios(arr);
+        if (arr.length && !selectedScenarioId) {
+          setSelectedScenarioId(arr[0].id);
+          if (arr[0].parametres) setParams({ ...params, ...arr[0].parametres });
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced simulation
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      setSimulating(true);
+      try {
+        const r = await fetch(`${apiBase}/projets/${projet.id}/simuler/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ parametres: params }),
+        });
+        if (r.ok) setSim(await r.json());
+        else toast.show("Erreur simulation", "err");
+      } finally {
+        setSimulating(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [params, apiBase, projet.id, toast]);
+
+  const saveAsScenario = async () => {
+    const name = newScenarioName || `Scenario ${scenarios.length + 1}`;
+    const r = await fetch(`${apiBase}/projets/${projet.id}/scenarios/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ nom: name, parametres: params, resultats: sim }),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      setScenarios([...scenarios, created]);
+      setSelectedScenarioId(created.id);
+      setNewScenarioName("");
+      toast.show(`Scenario "${name}" sauvegarde`);
+    } else {
+      toast.show("Erreur sauvegarde scenario", "err");
+    }
+  };
+
+  const fmtEur = (v?: number) =>
+    v == null ? "—" : new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  const fmtNum = (v?: number) =>
+    v == null ? "—" : new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(v);
+  const fmtPct = (v?: number) => (v == null ? "—" : `${v.toFixed(1)}%`);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      {/* Sliders */}
+      <div className="lg:col-span-4 rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+          <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">⚙️ Parametres simulation</h2>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* Scenarios saved */}
+          {scenarios.length > 0 && (
+            <Field label="Scenario charge">
+              <select
+                value={selectedScenarioId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setSelectedScenarioId(id);
+                  const s = scenarios.find((x) => x.id === id);
+                  if (s?.parametres) setParams({ ...params, ...s.parametres });
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
+              >
+                {scenarios.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+              </select>
+            </Field>
+          )}
+
+          <Field label="Niveau de prix matiere">
+            <select
+              value={params.niveau_prix}
+              onChange={(e) => setParams({ ...params, niveau_prix: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
+            >
+              <option value="prix_eco">Economique</option>
+              <option value="prix_standard">Standard</option>
+              <option value="prix_premium">Premium</option>
+              <option value="prix_luxe">Luxe</option>
+            </select>
+          </Field>
+
+          {(projet.mode_gestion === "admission" || projet.mode_gestion === "mixte") && (
+            <SliderField
+              label="Prix admission (€/cvt)"
+              value={params.prix_admission} min={3} max={15} step={0.10}
+              format={(v) => `${v.toFixed(2)} €`}
+              onChange={(v) => setParams({ ...params, prix_admission: v })}
+            />
+          )}
+
+          {projet.mode_gestion === "mixte" && (
+            <SliderField
+              label="% convives externes"
+              value={params.pct_externes} min={0} max={1} step={0.05}
+              format={(v) => `${Math.round(v * 100)}%`}
+              onChange={(v) => setParams({ ...params, pct_externes: v })}
+            />
+          )}
+
+          {projet.mode_gestion === "ticket" && (
+            <SliderField
+              label="Prix plateau moyen (€)"
+              value={params.prix_plateau_moyen} min={5} max={20} step={0.50}
+              format={(v) => `${v.toFixed(2)} €`}
+              onChange={(v) => setParams({ ...params, prix_plateau_moyen: v })}
+            />
+          )}
+
+          {projet.mode_gestion === "masse_frais" && (
+            <SliderField
+              label="Marge gestion (%)"
+              value={params.marge_gestion_pct} min={0} max={0.20} step={0.01}
+              format={(v) => `${(v * 100).toFixed(1)}%`}
+              onChange={(v) => setParams({ ...params, marge_gestion_pct: v })}
+            />
+          )}
+
+          <SliderField
+            label="Penetration convives"
+            value={params.penetration} min={0.3} max={1.0} step={0.05}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(v) => setParams({ ...params, penetration: v })}
+          />
+
+          <SliderField
+            label="Coefficient saisonnalite"
+            value={params.saisonnalite} min={0.6} max={1.4} step={0.05}
+            format={(v) => `×${v.toFixed(2)}`}
+            onChange={(v) => setParams({ ...params, saisonnalite: v })}
+          />
+
+          {projet.points_de_vente.length > 1 && (
+            <Field label="Mutualisation multi-PdV">
+              <select
+                value={params.mutualisation}
+                onChange={(e) => setParams({ ...params, mutualisation: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
+              >
+                <option value="none">Aucune</option>
+                <option value="scenario_1_3">Scenario 1&3 (encadrement -30%)</option>
+                <option value="scenario_2">Scenario 2 (encadrement -50%)</option>
+              </select>
+            </Field>
+          )}
+
+          {/* Save as scenario */}
+          <div className="pt-4 border-t border-custom-border-200">
+            <input
+              value={newScenarioName}
+              onChange={(e) => setNewScenarioName(e.target.value)}
+              placeholder="Nom du scenario"
+              className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm mb-2"
+            />
+            <button
+              onClick={saveAsScenario}
+              className="w-full px-4 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90"
+              style={{ background: C.chlorophyle }}
+            >
+              💾 Sauvegarder comme scenario
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* KPIs + P&L */}
+      <div className="lg:col-span-8 space-y-5">
+        {/* Score badge + perf */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {sim && (
+              <div className="px-4 py-2 rounded-xl flex items-center gap-3" style={{ background: C.terracottaBg }}>
+                <span className="text-2xl font-bold" style={{ color: C.terracotta }}>{sim.score_estime.total}</span>
+                <span className="text-xs text-custom-text-400">SCORE<br/>ESTIME /100</span>
+              </div>
+            )}
+            {simulating && <span className="inline-block w-4 h-4 border-2 border-custom-text-400/30 border-t-custom-text-200 rounded-full animate-spin" />}
+          </div>
+          {sim?._elapsed_ms != null && (
+            <span className="text-[11px] text-custom-text-400">
+              Calcule en {sim._elapsed_ms}ms
+            </span>
+          )}
+        </div>
+
+        {/* KPI Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard label="CA mensuel" value={fmtEur(sim?.pl.ca_total)} sub={`${fmtNum(sim?.activity.couverts_mois)} cvts`} color={C.terracotta} />
+          <KPICard label="Masse salariale" value={fmtEur(sim?.staffing.masse_chargee_mensuelle)} sub={`${sim?.staffing.etp_total.toFixed(1)} ETP`} color={C.chlorophyle} />
+          <KPICard label="Cout matiere" value={fmtEur(sim?.matiere.cout_matiere_mensuel)} sub={`${sim?.matiere.cout_par_couvert.toFixed(2) ?? "—"}€/cvt`} color={C.nude} />
+          <KPICard
+            label="Resultat"
+            value={fmtEur(sim?.pl.resultat)}
+            sub={fmtPct(sim?.pl.marge_pct)}
+            color={(sim?.pl.resultat ?? 0) >= 0 ? C.chlorophyle : C.terracotta}
+          />
+        </div>
+
+        {/* P&L Detail */}
+        <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+          <div className="px-5 py-3 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+            <h3 className="text-sm font-semibold text-custom-text-100">Compte de Resultat (mensuel)</h3>
+          </div>
+          {sim && (
+            <table className="w-full text-sm">
+              <tbody>
+                <PLRow label="CA Total" value={fmtEur(sim.pl.ca_total)} bold />
+                <PLRow label="Cout matiere" value={`- ${fmtEur(sim.pl.cout_matiere)}`} pct={fmtPct(sim.pl.ratio_matiere_pct)} />
+                <PLRow label="Masse salariale chargee" value={`- ${fmtEur(sim.pl.masse_salariale)}`} pct={fmtPct(sim.pl.ratio_personnel_pct)} />
+                <PLRow label="Frais generaux" value={`- ${fmtEur(sim.pl.frais_generaux)}`} pct={fmtPct(sim.pl.ratio_fg_pct)} />
+                <PLRow label="Amortissements" value={`- ${fmtEur(sim.pl.amortissements)}`} />
+                <PLRow label="Total charges" value={`- ${fmtEur(sim.pl.total_charges)}`} bold />
+                <PLRow label="RESULTAT MENSUEL" value={fmtEur(sim.pl.resultat)} bold accent={sim.pl.resultat >= 0 ? C.chlorophyle : C.terracotta} />
+                <PLRow label="Resultat annualise" value={fmtEur(sim.pl.resultat_annuel)} muted />
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Score breakdown */}
+        {sim && (
+          <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-5">
+            <h3 className="text-sm font-semibold text-custom-text-100 mb-3">Decomposition du score estime</h3>
+            <div className="grid grid-cols-5 gap-2">
+              {[
+                { k: "prix", label: "Prix", v: sim.score_estime.prix, max: 40, c: C.terracotta },
+                { k: "concept", label: "Concept", v: sim.score_estime.concept, max: 20, c: C.nude },
+                { k: "rh", label: "RH", v: sim.score_estime.rh, max: 15, c: C.chlorophyle },
+                { k: "rse", label: "RSE", v: sim.score_estime.rse, max: 15, c: C.sauge },
+                { k: "qualite", label: "Qualite", v: sim.score_estime.qualite, max: 10, c: C.charbon },
+              ].map((s) => (
+                <div key={s.k} className="text-center">
+                  <div className="text-2xl font-bold" style={{ color: s.c }}>{s.v}</div>
+                  <div className="text-[10px] text-custom-text-400">/ {s.max}</div>
+                  <div className="text-xs font-medium text-custom-text-200 mt-1">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function KPICard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-4">
+      <div className="text-[10px] font-semibold text-custom-text-400 uppercase tracking-wide">{label}</div>
+      <div className="text-xl font-bold mt-1" style={{ color: color || "var(--color-text-100)" }}>{value}</div>
+      {sub && <div className="text-xs text-custom-text-400 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function PLRow({ label, value, pct, bold, muted, accent }: { label: string; value: string; pct?: string; bold?: boolean; muted?: boolean; accent?: string }) {
+  return (
+    <tr className="border-b border-custom-border-100 last:border-b-0">
+      <td className={`px-5 py-2 text-sm ${bold ? "font-semibold" : ""} ${muted ? "text-custom-text-400" : "text-custom-text-200"}`}>
+        {label}
+      </td>
+      <td className={`px-5 py-2 text-sm text-right tabular-nums ${bold ? "font-bold" : ""} ${muted ? "text-custom-text-400" : ""}`} style={accent ? { color: accent } : {}}>
+        {value}
+      </td>
+      <td className="px-3 py-2 text-xs text-right text-custom-text-400 w-16">{pct || ""}</td>
+    </tr>
+  );
+}
+
+function SliderField({ label, value, min, max, step, format, onChange }: {
+  label: string; value: number; min: number; max: number; step: number;
+  format?: (v: number) => string; onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-[11px] font-semibold text-custom-text-400 uppercase tracking-wide">{label}</label>
+        <span className="text-sm font-semibold" style={{ color: C.terracotta }}>
+          {format ? format(value) : value}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min} max={max} step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full"
+      />
+    </div>
+  );
+}
+
+// ─── Tab: Generation ─────────────────────────────────────────────────────────
+
+function TabGeneration({ projet, apiBase, toast }: { projet: ProjetAO; apiBase: string; toast: ToastHandle }) {
+  const [scenarios, setScenarios] = useState<any[]>([]);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("");
+  const [generating, setGenerating] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    fetch(`${apiBase}/projets/${projet.id}/scenarios/`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : data.results || [];
+        setScenarios(arr);
+        if (arr.length) setSelectedScenarioId(arr[0].id);
+      })
+      .catch(() => {});
+  }, [apiBase, projet.id]);
+
+  const generate = async (kind: string, ext: string = "xlsx") => {
+    setGenerating({ ...generating, [kind]: true });
+    try {
+      const url = kind === "tout"
+        ? `${apiBase}/projets/${projet.id}/generer-tout/`
+        : `${apiBase}/projets/${projet.id}/generer-${kind}/`;
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ scenario_id: selectedScenarioId || null }),
+      });
+      if (!r.ok) {
+        toast.show("Erreur generation", "err");
+        return;
+      }
+      const blob = await r.blob();
+      const cd = r.headers.get("content-disposition") || "";
+      const m = cd.match(/filename="(.+?)"/);
+      const fname = m ? m[1] : `${kind}.${ext}`;
+      const url2 = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url2;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url2);
+      toast.show("Telechargement OK");
+    } catch (e: any) {
+      toast.show("Erreur: " + e.message, "err");
+    } finally {
+      setGenerating({ ...generating, [kind]: false });
+    }
+  };
+
+  const cards = [
+    { kind: "bpu", icon: "📊", title: "BPU Alimentaires", desc: ".xlsx · 25 onglets · prix unitaires", count: "25" },
+    { kind: "budget", icon: "💶", title: "Budget Previsionnel", desc: ".xlsx · 5 onglets · activite + P&L", count: "5" },
+    { kind: "cout-fixe", icon: "📋", title: "Cout Fixe Multi-Scenarios", desc: ".xlsx · 20 onglets · 3 scenarios", count: "20" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
+          <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">📦 Generation des documents AO</h2>
+        </div>
+        <div className="p-6">
+          {scenarios.length > 0 ? (
+            <Field label="Scenario a utiliser pour la generation">
+              <select
+                value={selectedScenarioId}
+                onChange={(e) => setSelectedScenarioId(e.target.value)}
+                className="w-full max-w-md px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
+              >
+                {scenarios.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+              </select>
+            </Field>
+          ) : (
+            <div className="px-4 py-3 rounded-lg text-sm" style={{ background: C.terracottaBg, color: C.terracotta }}>
+              ℹ️ Aucun scenario sauvegarde — la generation utilisera les parametres par defaut.
+              Cree un scenario depuis l'onglet "Scenarios & Simulation" pour customiser.
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            {cards.map((c) => (
+              <button
+                key={c.kind}
+                onClick={() => generate(c.kind)}
+                disabled={generating[c.kind]}
+                className="p-5 rounded-xl border-2 border-custom-border-200 text-left hover:border-custom-border-300 transition-all hover:shadow-md disabled:opacity-50 relative"
+              >
+                <div className="text-3xl mb-3">{c.icon}</div>
+                <div className="font-semibold text-sm text-custom-text-100 mb-1">{c.title}</div>
+                <div className="text-xs text-custom-text-400">{c.desc}</div>
+                {generating[c.kind] && (
+                  <div className="absolute top-3 right-3">
+                    <span className="inline-block w-4 h-4 border-2 border-custom-text-400/30 border-t-custom-text-200 rounded-full animate-spin" />
+                  </div>
+                )}
+                <div className="absolute bottom-3 right-4 text-[10px] uppercase tracking-wide text-custom-text-400 font-semibold">
+                  Telecharger →
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 flex justify-center pt-6 border-t border-custom-border-200">
+            <button
+              onClick={() => generate("tout", "zip")}
+              disabled={generating["tout"]}
+              className="px-6 py-3 rounded-xl text-white text-base font-semibold hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+              style={{ background: C.terracotta }}
+            >
+              {generating["tout"] && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              📦 Telecharger tout le dossier (.zip)
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

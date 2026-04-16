@@ -4,6 +4,7 @@ from plane.configurateur.views import (
     ProjetAOViewSet, PointDeVenteViewSet, ScenarioAOViewSet,
     MercurialeViewSet, PosteTypeViewSet, AOStatsView,
     ChangeStatutView, DupliquerView,
+    SimulerView, GenererBPUView, GenererBudgetView, GenererCoutFixeView, GenererToutView,
 )
 
 urlpatterns = [
@@ -13,6 +14,12 @@ urlpatterns = [
     # Actions
     path("projets/<uuid:pk>/change-statut/", ChangeStatutView.as_view(), name="ao-change-statut"),
     path("projets/<uuid:pk>/dupliquer/", DupliquerView.as_view(), name="ao-dupliquer"),
+    # Sprint 2 : simulation + generation Excel
+    path("projets/<uuid:pk>/simuler/", SimulerView.as_view(), name="ao-simuler"),
+    path("projets/<uuid:pk>/generer-bpu/", GenererBPUView.as_view(), name="ao-gen-bpu"),
+    path("projets/<uuid:pk>/generer-budget/", GenererBudgetView.as_view(), name="ao-gen-budget"),
+    path("projets/<uuid:pk>/generer-cout-fixe/", GenererCoutFixeView.as_view(), name="ao-gen-cf"),
+    path("projets/<uuid:pk>/generer-tout/", GenererToutView.as_view(), name="ao-gen-tout"),
     # Points de vente
     path("projets/<uuid:projet_id>/pdv/", PointDeVenteViewSet.as_view({"get": "list", "post": "create"}), name="ao-pdv"),
     path("projets/<uuid:projet_id>/pdv/<uuid:pk>/", PointDeVenteViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="ao-pdv-detail"),

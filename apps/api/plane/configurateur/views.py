@@ -1,4 +1,8 @@
 # Planer custom: Configurateur AO views
+import logging
+import time
+
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,12 +13,15 @@ from plane.authentication.session import BaseSessionAuthentication
 from plane.db.models import Workspace
 from plane.configurateur.models import (
     Mercuriale, PosteType, ProjetAO, PointDeVente, ScenarioAO,
+    CalculSnapshot,
 )
 from plane.configurateur.serializers import (
     MercurialeSerializer, PosteTypeSerializer,
     ProjetAOSerializer, ProjetAOListSerializer,
     PointDeVenteSerializer, ScenarioAOSerializer,
 )
+
+logger = logging.getLogger("plane.configurateur")
 
 
 class AOAuthMixin:
@@ -53,6 +60,154 @@ class ChangeStatutView(AOAuthMixin, APIView):
         projet.statut = nouveau_statut
         projet.save()
         return Response(ProjetAOSerializer(projet).data)
+
+
+class SimulerView(AOAuthMixin, APIView):
+    """Run the simulation pipeline and return full P&L + KPIs.
+
+    Optional: save_snapshot=true creates a CalculSnapshot for traceability.
+    """
+
+    def post(self, request, workspace_slug, pk):
+        try:
+            projet = ProjetAO.objects.get(id=pk, workspace__slug=workspace_slug)
+        except ProjetAO.DoesNotExist:
+            return Response({"error": "Projet introuvable"}, status=status.HTTP_404_NOT_FOUND)
+
+        params = request.data.get("parametres", {}) or {}
+        save_snapshot = bool(request.data.get("save_snapshot"))
+        scenario_id = request.data.get("scenario_id")
+
+        from plane.configurateur.services.simulation_engine import SimulationEngine
+
+        t0 = time.time()
+        try:
+            result = SimulationEngine(projet, params).run()
+        except Exception as e:
+            logger.exception("Simulation failed for projet %s", pk)
+            return Response(
+                {"error": "Erreur simulation: {}".format(str(e))},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        elapsed_ms = int((time.time() - t0) * 1000)
+        result["_elapsed_ms"] = elapsed_ms
+
+        if save_snapshot and scenario_id:
+            try:
+                scenario = ScenarioAO.objects.get(id=scenario_id, projet_ao=projet)
+                scenario.parametres = params
+                scenario.resultats = result
+                scenario.save()
+                CalculSnapshot.objects.create(
+                    scenario=scenario,
+                    ca_mensuel=result["pl"]["ca_total"],
+                    masse_salariale=result["staffing"]["masse_chargee_mensuelle"],
+                    cout_matiere=result["matiere"]["cout_matiere_mensuel"],
+                    frais_generaux=result["fg"]["fg_mensuel"],
+                    amortissements=result["invest"]["amortissement_mensuel"],
+                    resultat=result["pl"]["resultat"],
+                    marge_pct=result["pl"]["marge_pct"],
+                    cout_par_couvert=result["kpis"]["cout_par_couvert"],
+                    score_estime=result["score_estime"]["total"],
+                    details=result,
+                )
+            except ScenarioAO.DoesNotExist:
+                logger.warning("Scenario %s not found for snapshot", scenario_id)
+
+        return Response(result)
+
+
+class GenererBPUView(AOAuthMixin, APIView):
+    """Generate BPU Excel for a projet."""
+
+    def post(self, request, workspace_slug, pk):
+        return _generate_excel(self, request, workspace_slug, pk, "bpu")
+
+
+class GenererBudgetView(AOAuthMixin, APIView):
+    def post(self, request, workspace_slug, pk):
+        return _generate_excel(self, request, workspace_slug, pk, "budget")
+
+
+class GenererCoutFixeView(AOAuthMixin, APIView):
+    def post(self, request, workspace_slug, pk):
+        return _generate_excel(self, request, workspace_slug, pk, "coutfixe")
+
+
+class GenererToutView(AOAuthMixin, APIView):
+    """Generate the 3 Excel + zip them."""
+
+    def post(self, request, workspace_slug, pk):
+        try:
+            projet = ProjetAO.objects.get(id=pk, workspace__slug=workspace_slug)
+        except ProjetAO.DoesNotExist:
+            return Response({"error": "Projet introuvable"}, status=status.HTTP_404_NOT_FOUND)
+
+        scenario_id = request.data.get("scenario_id")
+        scenario = None
+        if scenario_id:
+            try:
+                scenario = ScenarioAO.objects.get(id=scenario_id, projet_ao=projet)
+            except ScenarioAO.DoesNotExist:
+                pass
+
+        from plane.configurateur.services.excel_generator import generate_dossier_zip
+        try:
+            zip_buf = generate_dossier_zip(projet, scenario)
+        except Exception as e:
+            logger.exception("ZIP generation failed for projet %s", pk)
+            return Response(
+                {"error": "Erreur generation ZIP: {}".format(str(e))},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        safe_name = projet.nom.replace("/", "_").replace(" ", "_")
+        response = HttpResponse(zip_buf.getvalue(), content_type="application/zip")
+        response["Content-Disposition"] = 'attachment; filename="Dossier_AO_{}.zip"'.format(safe_name)
+        return response
+
+
+def _generate_excel(view, request, workspace_slug, pk, kind):
+    """Helper for the 3 single-Excel generators."""
+    try:
+        projet = ProjetAO.objects.get(id=pk, workspace__slug=workspace_slug)
+    except ProjetAO.DoesNotExist:
+        return Response({"error": "Projet introuvable"}, status=status.HTTP_404_NOT_FOUND)
+
+    scenario_id = request.data.get("scenario_id")
+    scenario = None
+    if scenario_id:
+        try:
+            scenario = ScenarioAO.objects.get(id=scenario_id, projet_ao=projet)
+        except ScenarioAO.DoesNotExist:
+            pass
+
+    from plane.configurateur.services.excel_generator import (
+        BPUGenerator, BudgetGenerator, CoutFixeGenerator,
+    )
+    GENS = {"bpu": BPUGenerator, "budget": BudgetGenerator, "coutfixe": CoutFixeGenerator}
+    NAMES = {"bpu": "BPU", "budget": "Budget", "coutfixe": "CoutFixe"}
+
+    cls = GENS[kind]
+    try:
+        out = cls(projet, scenario).generate()
+    except Exception as e:
+        logger.exception("Excel %s generation failed for projet %s", kind, pk)
+        return Response(
+            {"error": "Erreur generation {}: {}".format(kind, str(e))},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    safe_client = projet.client.replace("/", "_").replace(" ", "_")
+    suffix = scenario.nom.replace("/", "_").replace(" ", "_") if scenario else "Default"
+    fname = "{}_{}_{}.xlsx".format(NAMES[kind], safe_client, suffix)
+
+    response = HttpResponse(
+        out.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="{}"'.format(fname)
+    return response
 
 
 class DupliquerView(AOAuthMixin, APIView):
