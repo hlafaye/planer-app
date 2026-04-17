@@ -132,7 +132,17 @@ export const coreRoutes: RouteConfigEntry[] = [
         // Planer custom: Configurateur AO
         route(":workspaceSlug/configurateur", "./(all)/[workspaceSlug]/(projects)/configurateur/page.tsx"),
         route(":workspaceSlug/configurateur/nouveau", "./(all)/[workspaceSlug]/(projects)/configurateur/nouveau/page.tsx"),
-        route(":workspaceSlug/configurateur/:projetId", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/page.tsx"),
+        // Configurateur AO detail — layout with sub-pages
+        layout("./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/layout.tsx", [
+          route(":workspaceSlug/configurateur/:projetId", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/page.tsx"),
+          route(":workspaceSlug/configurateur/:projetId/vue-ensemble", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/vue-ensemble/page.tsx"),
+          route(":workspaceSlug/configurateur/:projetId/points-de-vente", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/points-de-vente/page.tsx"),
+          route(":workspaceSlug/configurateur/:projetId/configuration", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/configuration/page.tsx"),
+          route(":workspaceSlug/configurateur/:projetId/referentiels", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/referentiels/page.tsx"),
+          route(":workspaceSlug/configurateur/:projetId/simulation", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/simulation/page.tsx"),
+          route(":workspaceSlug/configurateur/:projetId/comparateur", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/comparateur/page.tsx"),
+          route(":workspaceSlug/configurateur/:projetId/documents", "./(all)/[workspaceSlug]/(projects)/configurateur/[projetId]/documents/page.tsx"),
+        ]),
 
         // Archived Projects
         layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/archives/layout.tsx", [
