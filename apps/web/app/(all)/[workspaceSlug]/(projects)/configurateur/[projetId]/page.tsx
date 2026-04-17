@@ -172,89 +172,68 @@ export default function ProjetAODetailPage() {
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
 
   return (
-    <div className="h-full flex">
-      {/* ── Left sidebar nav ── */}
-      <div className="w-56 shrink-0 border-r border-border-subtle bg-surface-1 overflow-y-auto">
-        <div className="p-3">
-          <a
-            href={`/${workspaceSlug}/configurateur`}
-            className="flex items-center gap-1.5 text-xs text-tertiary hover:text-secondary no-underline mb-3 px-2"
-          >
-            &larr; Liste AO
-          </a>
-          <div className="px-2 mb-1">
-            <div className="text-caption-xs text-tertiary uppercase tracking-wider font-medium">Configurateur AO</div>
-          </div>
-          <div className="px-2 mb-4">
-            <div className="text-sm font-semibold text-primary truncate">{projet.nom}</div>
-            <div className="text-xs text-tertiary">{projet.client}</div>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setActiveTab(item.key)}
-                className={`w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors ${
-                  activeTab === item.key
-                    ? "bg-layer-transparent-active text-primary font-medium"
-                    : "text-secondary hover:bg-layer-transparent-hover"
-                }`}
-              >
-                <span className="text-base w-5 text-center shrink-0">{item.icon}</span>
-                <span className="truncate">{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Main content ── */}
-      <div className="flex-1 overflow-y-auto bg-surface-1">
-        <div className="max-w-5xl mx-auto px-6 py-5">
-          {/* Header */}
-          <div className="flex items-start justify-between pb-4 mb-2 border-b border-border-subtle">
-            <div>
-              <div className="inline-block text-caption-xs font-bold tracking-widest uppercase text-accent-primary bg-accent-primary/10 px-2 py-0.5 rounded-full mb-2">
-                CONFIGURATEUR AO
-              </div>
-              <h1 className="text-xl font-bold text-primary mb-1">
-                {projet.nom}
-              </h1>
-              <div className="flex items-center gap-2 text-sm text-tertiary flex-wrap">
-                {projet.localisation && <span>{projet.localisation}</span>}
-                {projet.localisation && <span className="opacity-30">&middot;</span>}
-                {projet.date_remise && <span>Remise le {formatDate(projet.date_remise)}</span>}
-                {projet.date_remise && <span className="opacity-30">&middot;</span>}
-                <span>{projet.client}</span>
-                <span className="opacity-30">&middot;</span>
-                <span>{projet.points_de_vente.length} PdV</span>
-              </div>
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-5xl mx-auto px-6 py-5">
+        {/* Header */}
+        <div className="flex items-start justify-between pb-4 mb-2 border-b border-border-subtle">
+          <div>
+            <a href={`/${workspaceSlug}/configurateur`} className="text-xs text-tertiary hover:text-secondary no-underline inline-flex items-center gap-1 mb-2">&larr; Retour a la liste</a>
+            <div className="inline-block text-caption-xs font-bold tracking-widest uppercase text-accent-primary bg-accent-primary/10 px-2 py-0.5 rounded-full mb-2 ml-3">
+              CONFIGURATEUR AO
             </div>
-            <div className="flex items-center gap-2 mt-4 relative">
-              <Button variant="secondary" size="base" onClick={dupliquer}>Dupliquer</Button>
-              <div className="relative">
-                <Button variant="ghost" size="base" onClick={() => setMenuOpen(!menuOpen)}>&#8942;</Button>
-                {menuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border-subtle bg-layer-3 shadow-xl z-50 overflow-hidden">
-                    <button onClick={() => { changeStatut("perdu"); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-layer-transparent-hover">Marquer Perdu</button>
-                    <button onClick={() => { supprimer(); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-danger-secondary hover:bg-danger-subtle">Supprimer</button>
-                  </div>
-                )}
-              </div>
+            <h1 className="text-xl font-bold text-primary mb-1">{projet.nom}</h1>
+            <div className="flex items-center gap-2 text-sm text-tertiary flex-wrap">
+              {projet.localisation && <span>{projet.localisation}</span>}
+              {projet.localisation && <span className="opacity-30">&middot;</span>}
+              {projet.date_remise && <span>Remise le {formatDate(projet.date_remise)}</span>}
+              {projet.date_remise && <span className="opacity-30">&middot;</span>}
+              <span>{projet.client}</span>
+              <span className="opacity-30">&middot;</span>
+              <span>{projet.points_de_vente.length} PdV</span>
             </div>
           </div>
-
-          {/* Status Stepper */}
-          <StatusStepper current={projet.statut} onChange={changeStatut} />
-
-          {/* Tab Content */}
-          {activeTab === "general" && <TabGeneral projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
-          {activeTab === "pdv" && <TabPointsDeVente projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
-          {activeTab === "config" && <TabConfig projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
-          {activeTab === "referentiels" && <TabReferentiels projet={projet} apiBase={apiBase} />}
-          {activeTab === "scenarios" && <TabScenarios projet={projet} apiBase={apiBase} />}
-          {activeTab === "docs" && <TabDocuments projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
+          <div className="flex items-center gap-2 mt-4 relative">
+            <Button variant="secondary" size="base" onClick={dupliquer}>Dupliquer</Button>
+            <div className="relative">
+              <Button variant="ghost" size="base" onClick={() => setMenuOpen(!menuOpen)}>&#8942;</Button>
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border-subtle bg-layer-3 shadow-xl z-50 overflow-hidden">
+                  <button onClick={() => { changeStatut("perdu"); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-layer-transparent-hover">Marquer Perdu</button>
+                  <button onClick={() => { supprimer(); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-danger-secondary hover:bg-danger-subtle">Supprimer</button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Status Stepper */}
+        <StatusStepper current={projet.statut} onChange={changeStatut} />
+
+        {/* Navigation tabs */}
+        <div className="flex gap-1 border-b border-border-subtle mb-5 overflow-x-auto">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setActiveTab(item.key)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === item.key
+                  ? "border-accent-primary text-primary"
+                  : "border-transparent text-tertiary hover:text-secondary"
+              }`}
+            >
+              <span className="text-base">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === "general" && <TabGeneral projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
+        {activeTab === "pdv" && <TabPointsDeVente projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
+        {activeTab === "config" && <TabConfig projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
+        {activeTab === "referentiels" && <TabReferentiels projet={projet} apiBase={apiBase} />}
+        {activeTab === "scenarios" && <TabScenarios projet={projet} apiBase={apiBase} />}
+        {activeTab === "docs" && <TabDocuments projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
       </div>
     </div>
   );
