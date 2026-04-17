@@ -1,8 +1,11 @@
-// Planer custom: Configurateur AO — detail page (polished EMPREINTES design)
+// Planer custom: Configurateur AO — detail page (Plane Design System)
 "use client";
 
 import { useParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Button } from "@plane/propel/button";
+import { IconButton } from "@plane/propel/icon-button";
+import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -36,25 +39,13 @@ type ProjetAO = {
   statut_display: string;
   points_de_vente: PointDeVente[];
   cctp_pdf: string | null;
+  duree_contrat_annees: number;
+  pct_frais_siege: number;
+  pct_produits_achats: number;
+  remise_commerciale_pct: number;
+  semaines_par_an: number;
   created_at: string;
   updated_at: string;
-};
-
-// ─── Design Tokens (EMPREINTES) ──────────────────────────────────────────────
-
-const C = {
-  terracotta: "#BF5D48",
-  terracottaHover: "#a84d3b",
-  terracottaBg: "rgba(191,93,72,0.10)",
-  terracottaGlow: "rgba(191,93,72,0.20)",
-  chlorophyle: "#385835",
-  chlorophyleBg: "rgba(56,88,53,0.15)",
-  sauge: "#929F88",
-  saugeBg: "rgba(146,159,136,0.15)",
-  nude: "#C4A882",
-  nudeBg: "rgba(196,168,130,0.15)",
-  charbon: "#3A3632",
-  charbonBg: "rgba(58,54,50,0.25)",
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -84,8 +75,8 @@ const NATURES: Record<string, string> = {
 };
 
 const MODES = [
-  { id: "masse_frais", icon: "\uD83D\uDCBC", name: "Masse de Frais", desc: "Charges salariales et FG facturees mensuellement au client. Convives paient au prix BPU.", tip: "Le plus courant en restauration d'entreprise" },
-  { id: "admission", icon: "\uD83C\uDFAB", name: "Admission / Subvention", desc: "Prix convive fixe. Employeur subventionne ses salaries. Part alimentaire optionnelle.", tip: "Site avec politique de subvention claire" },
+  { id: "masse_frais", icon: "\uD83D\uDCBC", name: "Masse de Frais", desc: "Charges salariales et FG facturees mensuellement au client.", tip: "Le plus courant en restauration d'entreprise" },
+  { id: "admission", icon: "\uD83C\uDFAB", name: "Admission / Subvention", desc: "Prix convive fixe. Employeur subventionne ses salaries.", tip: "Site avec politique de subvention claire" },
   { id: "mixte", icon: "\u2696\uFE0F", name: "Mixte", desc: "Masse de frais pour les charges fixes + admissions pour les exterieurs.", tip: "Projets complexes avec convives mixtes" },
   { id: "ticket", icon: "\uD83C\uDF7D\uFE0F", name: "Tout sur le ticket", desc: "Restauration commerciale classique. Le convive paie tout.", tip: "Restaurants grand public" },
   { id: "custom", icon: "\u2699\uFE0F", name: "Autre / Custom", desc: "Mode hybride ou specifique. Parametrage libre.", tip: "Cas atypiques" },
@@ -96,34 +87,19 @@ const HORAIRES: Record<string, string> = {
 };
 
 const SCORE_FIELDS = [
-  { key: "scoring_prix_pct" as const, label: "Prix", icon: "\uD83D\uDCB0", color: C.terracotta, bg: C.terracottaBg },
-  { key: "scoring_concept_pct" as const, label: "Concept", icon: "\uD83D\uDCA1", color: C.nude, bg: C.nudeBg },
-  { key: "scoring_rh_pct" as const, label: "RH & Organisation", icon: "\uD83D\uDC65", color: C.chlorophyle, bg: C.chlorophyleBg },
-  { key: "scoring_rse_pct" as const, label: "RSE / DD", icon: "\u267B\uFE0F", color: C.sauge, bg: C.saugeBg },
-  { key: "scoring_qualite_pct" as const, label: "Qualite & HSQE", icon: "\u2705", color: C.charbon, bg: C.charbonBg },
+  { key: "scoring_prix_pct" as const, label: "Prix", icon: "\uD83D\uDCB0" },
+  { key: "scoring_concept_pct" as const, label: "Concept", icon: "\uD83D\uDCA1" },
+  { key: "scoring_rh_pct" as const, label: "RH", icon: "\uD83D\uDC65" },
+  { key: "scoring_rse_pct" as const, label: "RSE", icon: "\u267B\uFE0F" },
+  { key: "scoring_qualite_pct" as const, label: "Qualite", icon: "\u2705" },
 ];
 
-// ─── Toast ───────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function useToast() {
-  const [msg, setMsg] = useState<{ text: string; type: "ok" | "err" } | null>(null);
-  const show = (text: string, type: "ok" | "err" = "ok") => {
-    setMsg({ text, type });
-    setTimeout(() => setMsg(null), 2500);
-  };
-  const Toast = msg ? (
-    <div
-      className="fixed bottom-6 right-6 z-[9999] px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg animate-[slideUp_0.3s_ease]"
-      style={{
-        background: msg.type === "ok" ? C.chlorophyle : C.terracotta,
-        color: "white",
-      }}
-    >
-      {msg.type === "ok" ? "\u2713 " : "\u2717 "}{msg.text}
-    </div>
-  ) : null;
-  return { show, Toast };
-}
+const toast = {
+  ok: (msg: string) => setToast({ type: TOAST_TYPE.SUCCESS, title: msg }),
+  err: (msg: string) => setToast({ type: TOAST_TYPE.ERROR, title: msg }),
+};
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
@@ -133,7 +109,6 @@ export default function ProjetAODetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("general");
   const [menuOpen, setMenuOpen] = useState(false);
-  const toast = useToast();
 
   const apiBase = `/api/v1/workspaces/${workspaceSlug}/configurateur`;
 
@@ -152,177 +127,134 @@ export default function ProjetAODetailPage() {
 
   const changeStatut = async (statut: string) => {
     const resp = await fetch(`${apiBase}/projets/${projetId}/change-statut/`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify({ statut }),
     });
-    if (resp.ok) {
-      setProjet(await resp.json());
-      toast.show("Statut mis a jour");
-    } else {
-      toast.show("Erreur changement de statut", "err");
-    }
+    if (resp.ok) { setProjet(await resp.json()); toast.ok("Statut mis a jour"); }
+    else toast.err("Erreur changement de statut");
   };
 
   const dupliquer = async () => {
-    const resp = await fetch(`${apiBase}/projets/${projetId}/dupliquer/`, {
-      method: "POST", credentials: "include",
-    });
+    const resp = await fetch(`${apiBase}/projets/${projetId}/dupliquer/`, { method: "POST", credentials: "include" });
     if (resp.ok) {
       const data = await resp.json();
-      toast.show("Projet duplique");
+      toast.ok("Projet duplique");
       setTimeout(() => window.location.assign(`/${workspaceSlug}/configurateur/${data.id}`), 600);
-    } else {
-      toast.show("Erreur duplication", "err");
-    }
+    } else toast.err("Erreur duplication");
   };
 
   const supprimer = async () => {
     if (!confirm("Supprimer ce projet AO ? Cette action est irreversible.")) return;
     const resp = await fetch(`${apiBase}/projets/${projetId}/`, { method: "DELETE", credentials: "include" });
     if (resp.ok) window.location.assign(`/${workspaceSlug}/configurateur`);
-    else toast.show("Erreur suppression", "err");
+    else toast.err("Erreur suppression");
   };
 
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-custom-text-400 text-sm">Chargement...</div>
+  if (loading) return <div className="h-full flex items-center justify-center text-tertiary text-sm">Chargement...</div>;
+  if (!projet) return (
+    <div className="h-full flex items-center justify-center">
+      <div className="text-center">
+        <p className="text-tertiary text-sm">Projet introuvable</p>
+        <a href={`/${workspaceSlug}/configurateur`} className="text-sm mt-2 inline-block text-link-primary">&larr; Retour</a>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (!projet) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-custom-text-400 text-sm">Projet introuvable</p>
-          <a href={`/${workspaceSlug}/configurateur`} className="text-sm mt-2 inline-block no-underline" style={{ color: C.terracotta }}>
-            &larr; Retour a la liste
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  const tabs = [
-    { key: "general", label: "General", icon: "\uD83D\uDCCB" },
+  const NAV_ITEMS = [
+    { key: "general", label: "Vue d'ensemble", icon: "\uD83D\uDCCB" },
     { key: "pdv", label: `Points de Vente (${projet.points_de_vente.length})`, icon: "\uD83C\uDFE2" },
-    { key: "gestion", label: "Mode de gestion", icon: "\uD83D\uDCCA" },
-    { key: "scoring", label: "Scoring CCTP", icon: "\uD83C\uDFAF" },
+    { key: "config", label: "Configuration", icon: "\u2699\uFE0F" },
     { key: "referentiels", label: "Referentiels", icon: "\uD83D\uDCD6" },
-    { key: "scenarios", label: "Simulation", icon: "\u2728" },
-    { key: "docs", label: "Documents", icon: "\uD83D\uDCC4" },
-    { key: "generation", label: "Generation", icon: "\uD83D\uDCE6" },
+    { key: "scenarios", label: "Simulation", icon: "\uD83E\uDDEE" },
+    { key: "docs", label: "Documents", icon: "\uD83D\uDCE6" },
   ];
 
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
 
   return (
-    <div className="h-full overflow-y-auto">
-      {toast.Toast}
-
-      <style>{`
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        input[type="range"] { -webkit-appearance: none; height: 8px; border-radius: 4px; background: rgba(90,85,82,0.2); outline: none; }
-        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
-      `}</style>
-
-      <div className="max-w-5xl mx-auto px-6 py-5">
-        {/* ── Header ── */}
-        <div className="flex items-start justify-between pb-5 mb-2 border-b border-custom-border-200">
-          <div>
-            <a
-              href={`/${workspaceSlug}/configurateur`}
-              className="text-custom-text-400 hover:text-custom-text-200 text-xs no-underline inline-flex items-center gap-1 mb-3"
-            >
-              &larr; Retour a la liste
-            </a>
-            <div
-              className="inline-block text-[10px] font-bold tracking-[2px] uppercase px-2.5 py-1 rounded-full mb-2"
-              style={{ color: C.terracotta, background: C.terracottaBg }}
-            >
-              CONFIGURATEUR AO
-            </div>
-            <h1 className="text-2xl font-bold text-custom-text-100 mb-1.5">
-              AO <span style={{ color: C.terracotta }}>{projet.client.toUpperCase()}</span>
-            </h1>
-            <div className="flex items-center gap-2 text-sm text-custom-text-400 flex-wrap">
-              {projet.localisation && <span>📍 {projet.localisation.toUpperCase()}</span>}
-              {projet.localisation && <span className="opacity-30">·</span>}
-              {projet.date_remise && <span>📅 Remise le {formatDate(projet.date_remise)}</span>}
-              {projet.date_remise && <span className="opacity-30">·</span>}
-              <span>🏢 {projet.client}</span>
-              <span className="opacity-30">·</span>
-              <span>🍽️ {projet.points_de_vente.length} Points de vente</span>
-            </div>
+    <div className="h-full flex">
+      {/* ── Left sidebar nav ── */}
+      <div className="w-56 shrink-0 border-r border-border-subtle bg-surface-1 overflow-y-auto">
+        <div className="p-3">
+          <a
+            href={`/${workspaceSlug}/configurateur`}
+            className="flex items-center gap-1.5 text-xs text-tertiary hover:text-secondary no-underline mb-3 px-2"
+          >
+            &larr; Liste AO
+          </a>
+          <div className="px-2 mb-1">
+            <div className="text-caption-xs text-tertiary uppercase tracking-wider font-medium">Configurateur AO</div>
           </div>
-          <div className="flex items-center gap-2 mt-6 relative">
-            <button
-              onClick={dupliquer}
-              className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-200 text-sm hover:bg-custom-background-90/50 flex items-center gap-1.5"
-            >
-              📋 Dupliquer
-            </button>
-            <div className="relative">
+          <div className="px-2 mb-4">
+            <div className="text-sm font-semibold text-primary truncate">{projet.nom}</div>
+            <div className="text-xs text-tertiary">{projet.client}</div>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            {NAV_ITEMS.map((item) => (
               <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="px-2.5 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-200 text-sm hover:bg-custom-background-90/50"
+                key={item.key}
+                onClick={() => setActiveTab(item.key)}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors ${
+                  activeTab === item.key
+                    ? "bg-layer-transparent-active text-primary font-medium"
+                    : "text-secondary hover:bg-layer-transparent-hover"
+                }`}
               >
-                &#8942;
+                <span className="text-base w-5 text-center shrink-0">{item.icon}</span>
+                <span className="truncate">{item.label}</span>
               </button>
-              {menuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-custom-border-200 bg-custom-background-100 shadow-xl z-50 overflow-hidden">
-                  <button
-                    onClick={() => { changeStatut("perdu"); setMenuOpen(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-custom-text-200 hover:bg-custom-background-90/50"
-                  >
-                    💀 Marquer Perdu
-                  </button>
-                  <button
-                    onClick={() => { supprimer(); setMenuOpen(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10"
-                  >
-                    🗑️ Supprimer
-                  </button>
-                </div>
-              )}
-            </div>
+            ))}
           </div>
         </div>
+      </div>
 
-        {/* ── Status Stepper ── */}
-        <StatusStepper current={projet.statut} onChange={changeStatut} />
+      {/* ── Main content ── */}
+      <div className="flex-1 overflow-y-auto bg-surface-1">
+        <div className="max-w-5xl mx-auto px-6 py-5">
+          {/* Header */}
+          <div className="flex items-start justify-between pb-4 mb-2 border-b border-border-subtle">
+            <div>
+              <div className="inline-block text-caption-xs font-bold tracking-widest uppercase text-accent-primary bg-accent-primary/10 px-2 py-0.5 rounded-full mb-2">
+                CONFIGURATEUR AO
+              </div>
+              <h1 className="text-xl font-bold text-primary mb-1">
+                {projet.nom}
+              </h1>
+              <div className="flex items-center gap-2 text-sm text-tertiary flex-wrap">
+                {projet.localisation && <span>{projet.localisation}</span>}
+                {projet.localisation && <span className="opacity-30">&middot;</span>}
+                {projet.date_remise && <span>Remise le {formatDate(projet.date_remise)}</span>}
+                {projet.date_remise && <span className="opacity-30">&middot;</span>}
+                <span>{projet.client}</span>
+                <span className="opacity-30">&middot;</span>
+                <span>{projet.points_de_vente.length} PdV</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-4 relative">
+              <Button variant="secondary" size="base" onClick={dupliquer}>Dupliquer</Button>
+              <div className="relative">
+                <Button variant="ghost" size="base" onClick={() => setMenuOpen(!menuOpen)}>&#8942;</Button>
+                {menuOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border-subtle bg-layer-3 shadow-xl z-50 overflow-hidden">
+                    <button onClick={() => { changeStatut("perdu"); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-layer-transparent-hover">Marquer Perdu</button>
+                    <button onClick={() => { supprimer(); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-danger-secondary hover:bg-danger-subtle">Supprimer</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-        {/* ── Tabs ── */}
-        <div className="flex gap-1 mb-6 border-b border-custom-border-200">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all flex items-center gap-1.5 ${
-                activeTab === tab.key
-                  ? "text-custom-text-100"
-                  : "border-transparent text-custom-text-400 hover:text-custom-text-200"
-              }`}
-              style={activeTab === tab.key ? { borderBottomColor: C.terracotta } : {}}
-            >
-              <span className="text-base">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+          {/* Status Stepper */}
+          <StatusStepper current={projet.statut} onChange={changeStatut} />
+
+          {/* Tab Content */}
+          {activeTab === "general" && <TabGeneral projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
+          {activeTab === "pdv" && <TabPointsDeVente projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
+          {activeTab === "config" && <TabConfig projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
+          {activeTab === "referentiels" && <TabReferentiels projet={projet} apiBase={apiBase} />}
+          {activeTab === "scenarios" && <TabScenarios projet={projet} apiBase={apiBase} />}
+          {activeTab === "docs" && <TabDocuments projet={projet} apiBase={apiBase} onSave={fetchProjet} />}
         </div>
-
-        {/* ── Tab Content ── */}
-        {activeTab === "general" && <TabGeneral projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
-        {activeTab === "pdv" && <TabPointsDeVente projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
-        {activeTab === "gestion" && <TabModeGestion projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
-        {activeTab === "scoring" && <TabScoring projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
-        {activeTab === "referentiels" && <TabReferentiels projet={projet} apiBase={apiBase} toast={toast} />}
-        {activeTab === "scenarios" && <TabScenarios projet={projet} apiBase={apiBase} toast={toast} />}
-        {activeTab === "docs" && <TabDocuments projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
-        {activeTab === "generation" && <TabGeneration projet={projet} apiBase={apiBase} toast={toast} />}
       </div>
     </div>
   );
@@ -332,52 +264,30 @@ export default function ProjetAODetailPage() {
 
 function StatusStepper({ current, onChange }: { current: string; onChange: (s: string) => void }) {
   const currentIdx = STEPS.findIndex((s) => s.key === current);
-
   return (
-    <div className="flex items-center py-5 mb-4">
+    <div className="flex items-center py-4 mb-4">
       {STEPS.map((step, i) => {
         const isDone = i < currentIdx;
         const isActive = i === currentIdx;
         const isGagne = step.key === "gagne" && isActive;
         return (
           <div key={step.key} className="flex-1 flex items-center">
-            <button
-              onClick={() => onChange(step.key)}
-              className="flex flex-col items-center gap-1.5 flex-1 group"
-            >
-              {/* Circle */}
-              <div
-                className="w-11 h-11 rounded-full flex items-center justify-center text-lg transition-all relative z-10"
-                style={{
-                  background: isActive
-                    ? isGagne ? C.chlorophyle : C.terracotta
-                    : isDone ? C.terracottaBg : "rgba(90,85,82,0.08)",
-                  border: `2px solid ${isActive ? (isGagne ? C.chlorophyle : C.terracotta) : isDone ? C.terracotta : "rgba(90,85,82,0.15)"}`,
-                  boxShadow: isActive
-                    ? `0 0 0 4px ${isGagne ? "rgba(56,88,53,0.2)" : C.terracottaGlow}`
-                    : "none",
-                  transform: isActive ? "scale(1.1)" : "scale(1)",
-                }}
-              >
+            <button onClick={() => onChange(step.key)} className="flex flex-col items-center gap-1.5 flex-1 group">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg relative z-10 border-2 transition-all ${
+                isActive
+                  ? isGagne ? "bg-success-primary border-success-primary text-on-color shadow-md scale-110" : "bg-accent-primary border-accent-primary text-on-color shadow-md scale-110"
+                  : isDone ? "bg-accent-primary/10 border-accent-primary" : "bg-layer-1 border-border-subtle"
+              }`}>
                 {step.icon}
               </div>
-              {/* Label */}
-              <span
-                className="text-xs transition-all"
-                style={{
-                  fontWeight: isActive || isDone ? 600 : 400,
-                  color: isActive ? (isGagne ? C.chlorophyle : C.terracotta) : isDone ? "var(--color-text-100, #e8e2dc)" : "var(--color-text-400, #7a7672)",
-                }}
-              >
+              <span className={`text-xs transition-all ${
+                isActive ? "font-semibold text-primary" : isDone ? "font-medium text-secondary" : "text-tertiary"
+              }`}>
                 {step.label}
               </span>
             </button>
-            {/* Connector line */}
             {i < STEPS.length - 1 && (
-              <div
-                className="h-0.5 flex-1 -mx-2 mt-[-18px]"
-                style={{ background: isDone ? C.terracotta : "rgba(90,85,82,0.15)" }}
-              />
+              <div className={`h-0.5 flex-1 -mx-2 mt-[-18px] ${isDone ? "bg-accent-primary" : "bg-border-subtle"}`} />
             )}
           </div>
         );
@@ -388,161 +298,193 @@ function StatusStepper({ current, onChange }: { current: string; onChange: (s: s
 
 // ─── SaveButton ──────────────────────────────────────────────────────────────
 
-type ToastHandle = { show: (text: string, type?: "ok" | "err") => void };
-
-function SaveButton({ onSave, disabled, toast }: { onSave: () => Promise<void>; disabled?: boolean; toast: ToastHandle }) {
+function SaveButton({ onSave, disabled }: { onSave: () => Promise<void>; disabled?: boolean }) {
   const [status, setStatus] = useState<"idle" | "saving" | "done">("idle");
-
   const handleClick = async () => {
     setStatus("saving");
-    try {
-      await onSave();
-      setStatus("done");
-      toast.show("Modifications enregistrees");
-      setTimeout(() => setStatus("idle"), 1800);
-    } catch {
-      setStatus("idle");
-      toast.show("Erreur sauvegarde", "err");
-    }
+    try { await onSave(); setStatus("done"); toast.ok("Modifications enregistrees"); setTimeout(() => setStatus("idle"), 1800); }
+    catch { setStatus("idle"); toast.err("Erreur sauvegarde"); }
   };
-
   return (
-    <button
-      onClick={handleClick}
-      disabled={disabled || status === "saving"}
-      className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50 flex items-center gap-2"
-      style={{
-        background: status === "done" ? C.chlorophyle : C.terracotta,
-      }}
-    >
-      {status === "saving" && (
-        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-      )}
-      {status === "saving" ? "Enregistrement..." : status === "done" ? "\u2713 Enregistre" : "Enregistrer"}
-    </button>
+    <Button variant="primary" size="lg" onClick={handleClick} disabled={disabled || status === "saving"} loading={status === "saving"}>
+      {status === "done" ? "\u2713 Enregistre" : "Enregistrer"}
+    </Button>
   );
 }
 
-// ─── Tab: General ────────────────────────────────────────────────────────────
+// ─── Tab: General (Vue d'ensemble) ───────────────────────────────────────────
 
-function TabGeneral({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
+function TabGeneral({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
   const [form, setForm] = useState({
-    nom: projet.nom,
-    client: projet.client,
-    localisation: projet.localisation || "",
-    date_remise: projet.date_remise || "",
-    date_ouverture_visee: projet.date_ouverture_visee || "",
-    nature: projet.nature,
-    perimetre: projet.perimetre,
+    nom: projet.nom, client: projet.client, localisation: projet.localisation || "",
+    date_remise: projet.date_remise || "", date_ouverture_visee: projet.date_ouverture_visee || "",
+    nature: projet.nature, perimetre: projet.perimetre,
+    duree_contrat_annees: projet.duree_contrat_annees || 5,
+    pct_frais_siege: projet.pct_frais_siege || 6.5,
+    remise_commerciale_pct: projet.remise_commerciale_pct || 0,
+    pct_produits_achats: projet.pct_produits_achats || 25,
+    semaines_par_an: projet.semaines_par_an || 45,
   });
 
   const save = async () => {
     const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify(form),
     });
-    if (resp.ok) await onSave();
-    else throw new Error("save failed");
+    if (resp.ok) await onSave(); else throw new Error("save failed");
   };
 
-  const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
-  const inputCls = "w-full px-3 py-2.5 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm focus:outline-none focus:ring-1 transition-shadow";
+  const update = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
+  const inputCls = "w-full h-8 px-3 rounded-md border border-border-subtle bg-layer-2 text-primary text-sm focus:outline-none focus:border-accent-primary transition-colors";
 
   return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-        <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">📋 Informations generales</h2>
-      </div>
-      <div className="p-6">
-        <div className="grid grid-cols-2 gap-5">
-          <Field label="Nom du projet *">
-            <input value={form.nom} onChange={(e) => update("nom", e.target.value)} className={inputCls} style={{ focusRingColor: C.terracotta } as any} />
-          </Field>
-          <Field label="Client *">
-            <input value={form.client} onChange={(e) => update("client", e.target.value)} className={inputCls} />
-          </Field>
-          <Field label="Localisation">
-            <input value={form.localisation} onChange={(e) => update("localisation", e.target.value)} placeholder="Ville, region..." className={inputCls} />
-          </Field>
-          <Field label="Nature de l'AO">
-            <select value={form.nature} onChange={(e) => update("nature", e.target.value)} className={inputCls}>
-              {Object.entries(NATURES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </Field>
-          <Field label="Date de remise">
-            <input type="date" value={form.date_remise} onChange={(e) => update("date_remise", e.target.value)} className={inputCls} />
-          </Field>
-          <Field label="Date d'ouverture visee">
-            <input type="date" value={form.date_ouverture_visee} onChange={(e) => update("date_ouverture_visee", e.target.value)} className={inputCls} />
-          </Field>
+    <div className="space-y-5">
+      {/* KPI cards */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="p-3 rounded-lg bg-layer-1 border border-border-subtle">
+          <div className="text-xs text-tertiary">Points de vente</div>
+          <div className="text-lg font-bold text-primary mt-1">{projet.points_de_vente.length}</div>
         </div>
-        <div className="mt-6 flex justify-end">
-          <SaveButton onSave={save} toast={toast} />
+        <div className="p-3 rounded-lg bg-layer-1 border border-border-subtle">
+          <div className="text-xs text-tertiary">Mode gestion</div>
+          <div className="text-lg font-bold text-primary mt-1 truncate">{MODES.find(m => m.id === projet.mode_gestion)?.name || projet.mode_gestion}</div>
+        </div>
+        <div className="p-3 rounded-lg bg-layer-1 border border-border-subtle">
+          <div className="text-xs text-tertiary">Semaines / an</div>
+          <div className="text-lg font-bold text-primary mt-1">{form.semaines_par_an}</div>
+        </div>
+        <div className="p-3 rounded-lg bg-layer-1 border border-border-subtle">
+          <div className="text-xs text-tertiary">Duree contrat</div>
+          <div className="text-lg font-bold text-primary mt-1">{form.duree_contrat_annees} ans</div>
         </div>
       </div>
+
+      <div className="grid grid-cols-2 gap-5">
+        {/* Left: Informations generales */}
+        <Section title="Informations generales">
+          <div className="space-y-3">
+            <Field label="Nom du projet"><input value={form.nom} onChange={(e) => update("nom", e.target.value)} className={inputCls} /></Field>
+            <Field label="Client"><input value={form.client} onChange={(e) => update("client", e.target.value)} className={inputCls} /></Field>
+            <Field label="Localisation"><input value={form.localisation} onChange={(e) => update("localisation", e.target.value)} placeholder="Ville, region..." className={inputCls} /></Field>
+            <Field label="Nature">
+              <select value={form.nature} onChange={(e) => update("nature", e.target.value)} className={inputCls}>
+                {Object.entries(NATURES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Date de remise"><input type="date" value={form.date_remise} onChange={(e) => update("date_remise", e.target.value)} className={inputCls} /></Field>
+              <Field label="Date ouverture"><input type="date" value={form.date_ouverture_visee} onChange={(e) => update("date_ouverture_visee", e.target.value)} className={inputCls} /></Field>
+            </div>
+          </div>
+        </Section>
+
+        {/* Right: Parametres financiers + Scoring */}
+        <div className="space-y-5">
+          <Section title="Parametres financiers">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Frais de siege (%)"><input type="number" step="0.1" value={form.pct_frais_siege} onChange={(e) => update("pct_frais_siege", parseFloat(e.target.value))} className={inputCls} /></Field>
+                <Field label="Remise commerciale (%)"><input type="number" step="0.1" value={form.remise_commerciale_pct} onChange={(e) => update("remise_commerciale_pct", parseFloat(e.target.value))} className={inputCls} /></Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Produits/achats (%)"><input type="number" step="0.1" value={form.pct_produits_achats} onChange={(e) => update("pct_produits_achats", parseFloat(e.target.value))} className={inputCls} /></Field>
+                <Field label="Duree contrat (ans)"><input type="number" value={form.duree_contrat_annees} onChange={(e) => update("duree_contrat_annees", parseInt(e.target.value))} className={inputCls} /></Field>
+              </div>
+              <Field label="Semaines / an"><input type="number" value={form.semaines_par_an} onChange={(e) => update("semaines_par_an", parseInt(e.target.value))} className={inputCls} /></Field>
+            </div>
+          </Section>
+
+          <Section title="Scoring CCTP">
+            <ScoringEditor projet={projet} apiBase={apiBase} onSave={onSave} />
+          </Section>
+        </div>
+      </div>
+      <div className="flex justify-end"><SaveButton onSave={save} /></div>
+    </div>
+  );
+}
+
+function ScoringEditor({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
+  const [scores, setScores] = useState({
+    scoring_concept_pct: projet.scoring_concept_pct, scoring_rh_pct: projet.scoring_rh_pct,
+    scoring_qualite_pct: projet.scoring_qualite_pct, scoring_rse_pct: projet.scoring_rse_pct,
+    scoring_prix_pct: projet.scoring_prix_pct,
+  });
+  const total = Object.values(scores).reduce((a, b) => a + b, 0);
+
+  const save = async () => {
+    const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify(scores),
+    });
+    if (resp.ok) { await onSave(); toast.ok("Scoring mis a jour"); }
+    else toast.err("Erreur");
+  };
+
+  return (
+    <div className="space-y-2">
+      {SCORE_FIELDS.map(({ key, label, icon }) => (
+        <div key={key} className="flex items-center gap-2">
+          <span className="text-sm w-5">{icon}</span>
+          <span className="text-sm text-secondary flex-1">{label}</span>
+          <input
+            type="number" min={0} max={100} step={5} value={scores[key]}
+            onChange={(e) => setScores({ ...scores, [key]: parseInt(e.target.value) || 0 })}
+            className="w-16 h-7 px-2 rounded-md border border-border-subtle bg-layer-2 text-primary text-sm text-right"
+          />
+          <span className="text-xs text-tertiary w-4">%</span>
+        </div>
+      ))}
+      <div className={`text-xs font-medium mt-1 ${total === 100 ? "text-success-secondary" : "text-danger-secondary"}`}>
+        Total : {total}% {total === 100 ? "\u2713" : "(doit faire 100%)"}
+      </div>
+      {total === 100 && <Button variant="ghost" size="sm" onClick={save}>Sauver scoring</Button>}
     </div>
   );
 }
 
 // ─── Tab: Points de Vente ────────────────────────────────────────────────────
 
-function TabPointsDeVente({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
+function TabPointsDeVente({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [adding, setAdding] = useState(false);
   const [newForm, setNewForm] = useState({ type_pdv: "self", nom: "", tranche_frequentation: 1, couverts_jour_cible: 200, jours_ouvres_mois: 20 });
+  const inputCls = "w-full h-7 px-2 rounded-md border border-border-subtle bg-layer-2 text-primary text-sm";
 
   const savePdv = async (pdvId: string) => {
     const resp = await fetch(`${apiBase}/projets/${projet.id}/pdv/${pdvId}/`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify(editForm),
     });
-    if (resp.ok) { setEditingId(null); await onSave(); toast.show("PdV modifie"); }
-    else toast.show("Erreur sauvegarde PdV", "err");
+    if (resp.ok) { setEditingId(null); await onSave(); toast.ok("PdV modifie"); }
+    else toast.err("Erreur sauvegarde PdV");
   };
 
   const deletePdv = async (pdvId: string) => {
     if (!confirm("Supprimer ce point de vente ?")) return;
     const resp = await fetch(`${apiBase}/projets/${projet.id}/pdv/${pdvId}/`, { method: "DELETE", credentials: "include" });
-    if (resp.ok) { await onSave(); toast.show("PdV supprime"); }
+    if (resp.ok) { await onSave(); toast.ok("PdV supprime"); }
   };
 
   const addPdv = async () => {
-    if (!newForm.nom.trim()) { toast.show("Le nom est requis", "err"); return; }
+    if (!newForm.nom.trim()) { toast.err("Le nom est requis"); return; }
     const resp = await fetch(`${apiBase}/projets/${projet.id}/pdv/`, {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify(newForm),
     });
     if (resp.ok) {
-      setAdding(false);
-      setNewForm({ type_pdv: "self", nom: "", tranche_frequentation: 1, couverts_jour_cible: 200, jours_ouvres_mois: 20 });
-      await onSave();
-      toast.show("PdV ajoute");
-    } else toast.show("Erreur ajout PdV", "err");
+      setAdding(false); setNewForm({ type_pdv: "self", nom: "", tranche_frequentation: 1, couverts_jour_cible: 200, jours_ouvres_mois: 20 });
+      await onSave(); toast.ok("PdV ajoute");
+    } else toast.err("Erreur ajout");
   };
 
-  const inputCls = "w-full px-2 py-1.5 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm";
-
   return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-custom-border-200 flex items-center justify-between" style={{ background: "rgba(90,85,82,0.04)" }}>
-        <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">
-          🏢 Points de Vente ({projet.points_de_vente.length})
-        </h2>
-        <button
-          onClick={() => setAdding(true)}
-          className="px-3 py-1.5 rounded-lg text-white text-sm font-medium hover:opacity-90 flex items-center gap-1"
-          style={{ background: C.terracotta }}
-        >
-          + Ajouter un PdV
-        </button>
-      </div>
-      <div className="p-4 space-y-2.5">
+    <Section title={`Points de Vente (${projet.points_de_vente.length})`} action={<Button variant="primary" size="sm" onClick={() => setAdding(true)}>+ Ajouter</Button>}>
+      <div className="space-y-2">
         {projet.points_de_vente.map((pdv) =>
           editingId === pdv.id ? (
-            <div key={pdv.id} className="p-4 rounded-xl border-2 border-dashed border-custom-border-300 bg-custom-background-90/30">
+            <div key={pdv.id} className="p-4 rounded-lg border-2 border-dashed border-border-strong bg-layer-1">
               <div className="grid grid-cols-5 gap-3 mb-3">
                 <Field label="Type"><select value={editForm.type_pdv} onChange={(e) => setEditForm({ ...editForm, type_pdv: e.target.value })} className={inputCls}>{Object.entries(PDV_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
                 <Field label="Nom"><input value={editForm.nom} onChange={(e) => setEditForm({ ...editForm, nom: e.target.value })} className={inputCls} /></Field>
@@ -551,62 +493,32 @@ function TabPointsDeVente({ projet, apiBase, onSave, toast }: { projet: ProjetAO
                 <Field label="Jours/mois"><input type="number" value={editForm.jours_ouvres_mois} onChange={(e) => setEditForm({ ...editForm, jours_ouvres_mois: parseInt(e.target.value) || 20 })} className={inputCls} /></Field>
               </div>
               <div className="flex gap-2 justify-end">
-                <button onClick={() => savePdv(pdv.id)} className="px-3 py-1.5 rounded-lg text-white text-xs font-medium" style={{ background: C.chlorophyle }}>Valider</button>
-                <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs">Annuler</button>
+                <Button variant="primary" size="sm" onClick={() => savePdv(pdv.id)}>Valider</Button>
+                <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>Annuler</Button>
               </div>
             </div>
           ) : (
-            <div
-              key={pdv.id}
-              className="grid items-center gap-4 p-3.5 rounded-xl border border-custom-border-200 bg-custom-background-100 hover:border-custom-border-300 transition-all group"
-              style={{ gridTemplateColumns: "56px 1fr auto auto" }}
-            >
-              {/* Icon */}
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: C.terracottaBg }}>
-                {PDV_ICONS[pdv.type_pdv] || "🍽️"}
+            <div key={pdv.id} className="flex items-center gap-4 p-3 rounded-lg border border-border-subtle bg-layer-1 hover:border-border-strong transition-colors group">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-accent-primary/10">{PDV_ICONS[pdv.type_pdv] || "\uD83C\uDF7D\uFE0F"}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-primary">{pdv.nom || PDV_LABELS[pdv.type_pdv]}</div>
+                <div className="text-xs text-tertiary">{PDV_LABELS[pdv.type_pdv]}</div>
               </div>
-              {/* Name + Type */}
-              <div>
-                <div className="font-semibold text-sm text-custom-text-100">{pdv.nom || PDV_LABELS[pdv.type_pdv]}</div>
-                <div className="text-xs text-custom-text-400">{PDV_LABELS[pdv.type_pdv]}</div>
-              </div>
-              {/* Stats */}
               <div className="flex items-center gap-5">
                 <TrancheBadge tranche={pdv.tranche_frequentation} />
-                <div className="text-center min-w-[50px]">
-                  <div className="text-lg font-bold text-custom-text-100 leading-none">{pdv.couverts_jour_cible || "\u2014"}</div>
-                  <div className="text-[10px] text-custom-text-400 uppercase tracking-wider mt-0.5">couv/j</div>
-                </div>
-                <div className="text-center min-w-[40px]">
-                  <div className="text-lg font-bold text-custom-text-100 leading-none">{pdv.jours_ouvres_mois}</div>
-                  <div className="text-[10px] text-custom-text-400 uppercase tracking-wider mt-0.5">j/mois</div>
-                </div>
+                <Stat value={pdv.couverts_jour_cible || "\u2014"} label="cvt/j" />
+                <Stat value={pdv.jours_ouvres_mois} label="j/m" />
               </div>
-              {/* Actions */}
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => { setEditingId(pdv.id); setEditForm({ type_pdv: pdv.type_pdv, nom: pdv.nom, tranche_frequentation: pdv.tranche_frequentation, couverts_jour_cible: pdv.couverts_jour_cible, jours_ouvres_mois: pdv.jours_ouvres_mois }); }}
-                  className="p-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs hover:text-custom-text-200 hover:bg-custom-background-90/50"
-                  title="Modifier"
-                >
-                  ✎
-                </button>
-                <button
-                  onClick={() => deletePdv(pdv.id)}
-                  className="p-1.5 rounded-lg border border-custom-border-200 text-red-400 text-xs hover:bg-red-500/10"
-                  title="Supprimer"
-                >
-                  🗑️
-                </button>
+                <Button variant="ghost" size="sm" onClick={() => { setEditingId(pdv.id); setEditForm(pdv); }}>Editer</Button>
+                <Button variant="ghost" size="sm" className="text-danger-secondary" onClick={() => deletePdv(pdv.id)}>Suppr</Button>
               </div>
             </div>
           )
         )}
-
-        {/* Add form */}
         {adding && (
-          <div className="p-4 rounded-xl border-2 border-dashed bg-custom-background-90/20" style={{ borderColor: C.terracotta }}>
-            <div className="text-xs font-semibold text-custom-text-200 mb-3">Nouveau Point de Vente</div>
+          <div className="p-4 rounded-lg border-2 border-dashed border-accent-primary bg-accent-primary/5">
+            <div className="text-xs font-semibold text-secondary mb-3">Nouveau Point de Vente</div>
             <div className="grid grid-cols-5 gap-3 mb-3">
               <Field label="Type"><select value={newForm.type_pdv} onChange={(e) => setNewForm({ ...newForm, type_pdv: e.target.value })} className={inputCls}>{Object.entries(PDV_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
               <Field label="Nom"><input value={newForm.nom} onChange={(e) => setNewForm({ ...newForm, nom: e.target.value })} placeholder="Nom du PdV" className={inputCls} /></Field>
@@ -615,42 +527,22 @@ function TabPointsDeVente({ projet, apiBase, onSave, toast }: { projet: ProjetAO
               <Field label="Jours/mois"><input type="number" value={newForm.jours_ouvres_mois} onChange={(e) => setNewForm({ ...newForm, jours_ouvres_mois: parseInt(e.target.value) || 20 })} className={inputCls} /></Field>
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={addPdv} className="px-3 py-1.5 rounded-lg text-white text-xs font-medium" style={{ background: C.chlorophyle }}>Ajouter</button>
-              <button onClick={() => setAdding(false)} className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs">Annuler</button>
+              <Button variant="primary" size="sm" onClick={addPdv}>Ajouter</Button>
+              <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>Annuler</Button>
             </div>
           </div>
         )}
-
         {projet.points_de_vente.length === 0 && !adding && (
-          <div className="text-center py-12 text-custom-text-400">
-            <div className="text-3xl mb-2">🏢</div>
-            <p className="text-sm">Aucun point de vente</p>
-            <p className="text-xs mt-1">Cliquez "+ Ajouter un PdV" pour commencer</p>
-          </div>
+          <div className="text-center py-12 text-tertiary"><p className="text-sm">Aucun point de vente</p></div>
         )}
       </div>
-    </div>
+    </Section>
   );
 }
 
-function TrancheBadge({ tranche }: { tranche: number }) {
-  const style = tranche <= 3
-    ? { bg: C.saugeBg, color: C.sauge }
-    : tranche <= 6
-      ? { bg: C.terracottaBg, color: C.terracotta }
-      : { bg: C.chlorophyleBg, color: C.chlorophyle };
+// ─── Tab: Configuration (Mode gestion + Horaires) ────────────────────────────
 
-  return (
-    <div className="flex flex-col items-center px-3 py-1.5 rounded-lg" style={{ background: style.bg }}>
-      <span className="text-base font-bold leading-none" style={{ color: style.color }}>T{tranche}</span>
-      <span className="text-[9px] uppercase tracking-widest mt-0.5 opacity-80" style={{ color: style.color }}>tranche</span>
-    </div>
-  );
-}
-
-// ─── Tab: Mode de Gestion ────────────────────────────────────────────────────
-
-function TabModeGestion({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
+function TabConfig({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
   const [selected, setSelected] = useState(projet.mode_gestion);
   const [horaires, setHoraires] = useState(projet.horaires_service);
 
@@ -659,685 +551,123 @@ function TabModeGestion({ projet, apiBase, onSave, toast }: { projet: ProjetAO; 
       method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify({ mode_gestion: selected, horaires_service: horaires }),
     });
-    if (resp.ok) await onSave();
-    else throw new Error("save failed");
+    if (resp.ok) { await onSave(); toast.ok("Configuration enregistree"); }
+    else toast.err("Erreur");
   };
 
   return (
     <div className="space-y-6">
-      {/* Mode de gestion */}
-      <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-          <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">📊 Mode de gestion</h2>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {MODES.map((mode) => (
-              <button
-                key={mode.id}
-                onClick={() => setSelected(mode.id)}
-                className={`p-5 rounded-xl border-2 text-left transition-all relative ${
-                  selected === mode.id ? "shadow-md" : "hover:shadow-sm"
-                }`}
-                style={{
-                  borderColor: selected === mode.id ? C.terracotta : "var(--color-border-200, rgba(90,85,82,0.15))",
-                  background: selected === mode.id ? C.terracottaBg : "var(--color-background-100, #2a2725)",
-                  transform: selected === mode.id ? "translateY(-2px)" : "none",
-                }}
-              >
-                {selected === mode.id && (
-                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: C.terracotta }}>
-                    ✓
-                  </div>
-                )}
-                <div className="text-2xl mb-2">{mode.icon}</div>
-                <div className="font-semibold text-sm text-custom-text-100 mb-1.5">{mode.name}</div>
-                <div className="text-xs text-custom-text-400 leading-relaxed mb-3">{mode.desc}</div>
-                <div className="text-[11px] pt-2.5 border-t border-dashed border-custom-border-200">
-                  <span style={{ color: C.terracotta, fontWeight: 600 }}>💡 Ideal pour : </span>
-                  <span className="text-custom-text-400">{mode.tip}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Horaires */}
-      <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-          <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">🕐 Horaires de service</h2>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {Object.entries(HORAIRES).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setHoraires(key)}
-                className="p-3.5 rounded-xl border-2 text-center text-sm font-medium transition-all"
-                style={{
-                  borderColor: horaires === key ? C.terracotta : "var(--color-border-200, rgba(90,85,82,0.15))",
-                  background: horaires === key ? C.terracottaBg : "var(--color-background-90, #242220)",
-                  color: horaires === key ? C.terracotta : "var(--color-text-300, #a09a94)",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="mt-6 flex justify-end">
-            <SaveButton onSave={save} toast={toast} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab: Scoring CCTP ───────────────────────────────────────────────────────
-
-function TabScoring({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
-  const [scores, setScores] = useState({
-    scoring_concept_pct: projet.scoring_concept_pct,
-    scoring_rh_pct: projet.scoring_rh_pct,
-    scoring_qualite_pct: projet.scoring_qualite_pct,
-    scoring_rse_pct: projet.scoring_rse_pct,
-    scoring_prix_pct: projet.scoring_prix_pct,
-  });
-
-  const total = scores.scoring_concept_pct + scores.scoring_rh_pct + scores.scoring_qualite_pct + scores.scoring_rse_pct + scores.scoring_prix_pct;
-  const isValid = total === 100;
-
-  const save = async () => {
-    if (!isValid) throw new Error("Total != 100%");
-    const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify(scores),
-    });
-    if (resp.ok) await onSave();
-    else throw new Error("save failed");
-  };
-
-  return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-        <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">🎯 Ponderation du scoring CCTP</h2>
-      </div>
-      <div className="p-6">
-        <div className="space-y-5 max-w-lg">
-          {SCORE_FIELDS.map(({ key, label, icon, color, bg }) => (
-            <div key={key}>
-              <div className="flex items-center gap-2.5 mb-2">
-                <span className="text-base">{icon}</span>
-                <span className="flex-1 text-sm font-medium text-custom-text-200">{label}</span>
-                <span className="text-lg font-bold min-w-[48px] text-right" style={{ color }}>{scores[key]}%</span>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-0 h-2 rounded-full top-[10px]" style={{ background: "rgba(90,85,82,0.12)" }} />
-                <div className="absolute h-2 rounded-full top-[10px] transition-all" style={{ background: color, width: `${scores[key]}%` }} />
-                <input
-                  type="range"
-                  min={0} max={100} step={5}
-                  value={scores[key]}
-                  onChange={(e) => setScores({ ...scores, [key]: parseInt(e.target.value) })}
-                  className="relative w-full z-10"
-                  style={{ background: "transparent" }}
-                />
-                <style>{`
-                  input[type="range"]::-webkit-slider-thumb { background: ${color}; }
-                `}</style>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Stacked bar */}
-        <div className="mt-8 p-4 rounded-xl border border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-          <div className="flex h-7 rounded-lg overflow-hidden mb-2.5">
-            {SCORE_FIELDS.map(({ key, color }) => (
-              <div
-                key={key}
-                className="transition-all duration-300"
-                style={{ width: `${scores[key]}%`, background: color }}
-                title={`${key}: ${scores[key]}%`}
-              />
-            ))}
-          </div>
-          <div className={`text-sm font-semibold text-center ${isValid ? "" : ""}`} style={{ color: isValid ? C.chlorophyle : C.terracotta }}>
-            Total : {total}% {isValid ? " \u2713" : " (doit faire 100%)"}
-          </div>
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <SaveButton onSave={save} disabled={!isValid} toast={toast} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab: Documents ──────────────────────────────────────────────────────────
-
-function TabDocuments({ projet, apiBase, onSave, toast }: { projet: ProjetAO; apiBase: string; onSave: () => void; toast: ToastHandle }) {
-  const docs = [
-    { key: "cctp_pdf", label: "CCTP / Cahier des charges", icon: "📋", required: true },
-  ];
-
-  return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-        <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">📄 Documents du projet</h2>
-      </div>
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {docs.map((doc) => (
-            <DocUploadZone
-              key={doc.key}
-              projet={projet}
-              apiBase={apiBase}
-              field={doc.key}
-              label={doc.label}
-              icon={doc.icon}
-              required={doc.required}
-              currentFile={(projet as any)[doc.key]}
-              onSave={onSave}
-              toast={toast}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DocUploadZone({
-  projet, apiBase, field, label, icon, required, currentFile, onSave, toast,
-}: {
-  projet: ProjetAO; apiBase: string; field: string; label: string; icon: string;
-  required?: boolean; currentFile: string | null; onSave: () => void; toast: ToastHandle;
-}) {
-  const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const upload = async (file: File) => {
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append(field, file);
-      const resp = await fetch(`${apiBase}/projets/${projet.id}/`, {
-        method: "PATCH", credentials: "include", body: formData,
-      });
-      if (resp.ok) { await onSave(); toast.show("Document uploade"); }
-      else toast.show("Erreur upload", "err");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && file.type === "application/pdf") upload(file);
-    else toast.show("PDF uniquement", "err");
-  };
-
-  return (
-    <div className="rounded-xl border border-custom-border-200 p-5">
-      <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-custom-border-200">
-        <span className="text-xl">{icon}</span>
-        <span className="text-sm font-medium text-custom-text-100 flex-1">
-          {label}
-          {required && <span style={{ color: C.terracotta }}> *</span>}
-        </span>
-      </div>
-
-      {currentFile ? (
-        <div>
-          <div className="rounded-lg border border-custom-border-200 overflow-hidden mb-3">
-            <iframe src={currentFile} className="w-full h-52 border-none block" title={label} />
-          </div>
-          <div className="flex justify-end gap-2">
-            <a
-              href={currentFile}
-              download
-              className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs hover:text-custom-text-200 no-underline inline-flex items-center gap-1"
+      <Section title="Mode de gestion">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {MODES.map((mode) => (
+            <button
+              key={mode.id} onClick={() => setSelected(mode.id)}
+              className={`p-4 rounded-lg border-2 text-left transition-all relative ${
+                selected === mode.id
+                  ? "border-accent-primary bg-accent-primary/5 shadow-sm"
+                  : "border-border-subtle bg-layer-1 hover:border-border-strong hover:shadow-sm"
+              }`}
             >
-              ⬇ Telecharger
-            </a>
-            <label className="px-3 py-1.5 rounded-lg border border-custom-border-200 text-custom-text-400 text-xs hover:text-custom-text-200 cursor-pointer inline-flex items-center gap-1">
-              🔄 Remplacer
-              <input ref={inputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
-            </label>
-          </div>
-        </div>
-      ) : (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
-          className="py-10 px-6 rounded-xl text-center cursor-pointer transition-all border-2 border-dashed"
-          style={{
-            borderColor: dragging ? C.terracotta : "var(--color-border-200, rgba(90,85,82,0.15))",
-            background: dragging ? C.terracottaBg : "transparent",
-          }}
-        >
-          <input ref={inputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
-          {uploading ? (
-            <div className="flex flex-col items-center gap-2">
-              <span className="inline-block w-6 h-6 border-2 border-custom-text-400/30 rounded-full animate-spin" style={{ borderTopColor: C.terracotta }} />
-              <span className="text-sm text-custom-text-400">Upload en cours...</span>
-            </div>
-          ) : (
-            <>
-              <div className="text-3xl mb-2">📄</div>
-              <div className="text-sm font-medium text-custom-text-200 mb-1">
-                {dragging ? "Deposer ici" : "Glisser-deposer ou cliquer"}
+              {selected === mode.id && (
+                <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-accent-primary text-on-color flex items-center justify-center text-xs font-bold">&check;</div>
+              )}
+              <div className="text-xl mb-2">{mode.icon}</div>
+              <div className="text-sm font-semibold text-primary mb-1">{mode.name}</div>
+              <div className="text-xs text-tertiary leading-relaxed mb-2">{mode.desc}</div>
+              <div className="text-caption-xs pt-2 border-t border-border-subtle">
+                <span className="text-accent-primary font-medium">Ideal : </span>
+                <span className="text-tertiary">{mode.tip}</span>
               </div>
-              <div className="text-xs text-custom-text-400">PDF uniquement · 10 Mo max</div>
-            </>
-          )}
+            </button>
+          ))}
         </div>
-      )}
+      </Section>
+
+      <Section title="Horaires de service">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Object.entries(HORAIRES).map(([key, label]) => (
+            <button key={key} onClick={() => setHoraires(key)}
+              className={`p-3 rounded-lg border-2 text-center text-sm font-medium transition-all ${
+                horaires === key
+                  ? "border-accent-primary bg-accent-primary/5 text-accent-primary"
+                  : "border-border-subtle bg-layer-1 text-secondary hover:border-border-strong"
+              }`}
+            >{label}</button>
+          ))}
+        </div>
+      </Section>
+
+      <div className="flex justify-end"><SaveButton onSave={save} /></div>
     </div>
   );
 }
 
 // ─── Tab: Referentiels ───────────────────────────────────────────────────────
 
-function TabReferentiels({ projet, apiBase, toast }: { projet: ProjetAO; apiBase: string; toast: ToastHandle }) {
+function TabReferentiels({ projet, apiBase }: { projet: ProjetAO; apiBase: string }) {
   const [subTab, setSubTab] = useState("postes");
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const SUBTABS = [
-    { key: "postes", label: "Postes & Staffing", endpoint: "referentiels/postes/" },
+    { key: "postes", label: "Postes", endpoint: "referentiels/postes/" },
     { key: "fg", label: "Frais Generaux", endpoint: "referentiels/frais-generaux/" },
     { key: "invest", label: "Investissements", endpoint: "referentiels/investissements/" },
     { key: "taux", label: "Taux Charges", endpoint: "referentiels/taux-charges/" },
     { key: "tranches", label: "Tranches", endpoint: "referentiels/tranches/" },
     { key: "produits", label: "Produits", endpoint: "referentiels/produits/" },
   ];
-
   const currentSub = SUBTABS.find((s) => s.key === subTab)!;
 
   useEffect(() => {
     setLoading(true);
     fetch(`${apiBase}/${currentSub.endpoint}`, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => {
-        setData(Array.isArray(d) ? d : d.results || []);
-        setLoading(false);
-      })
+      .then((d) => { setData(Array.isArray(d) ? d : d.results || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [subTab, apiBase, currentSub.endpoint]);
 
   return (
     <div className="space-y-4">
-      {/* Sub-tabs */}
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1 border-b border-border-subtle">
         {SUBTABS.map((st) => (
-          <button
-            key={st.key}
-            onClick={() => setSubTab(st.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          <button key={st.key} onClick={() => setSubTab(st.key)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
               subTab === st.key
-                ? "text-white"
-                : "border border-custom-border-200 text-custom-text-400 hover:text-custom-text-200"
+                ? "border-accent-primary text-primary"
+                : "border-transparent text-tertiary hover:text-secondary"
             }`}
-            style={subTab === st.key ? { background: C.terracotta } : {}}
-          >
-            {st.label}
-          </button>
+          >{st.label} ({subTab === st.key ? data.length : ""})</button>
         ))}
       </div>
 
-      {/* Content */}
-      <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-        <div className="px-6 py-3 border-b border-custom-border-200 flex items-center justify-between" style={{ background: "rgba(90,85,82,0.04)" }}>
-          <h2 className="text-sm font-semibold text-custom-text-100">
-            📖 {currentSub.label} ({data.length})
-          </h2>
-          <span className="text-[10px] text-custom-text-400 uppercase tracking-wide">Referentiel EMPREINTES</span>
-        </div>
-        <div className="overflow-x-auto">
-          {loading ? (
-            <div className="p-8 text-center text-custom-text-400 text-sm">Chargement...</div>
-          ) : data.length === 0 ? (
-            <div className="p-8 text-center text-custom-text-400 text-sm">Aucune donnee. Lancez la commande d'import.</div>
-          ) : (
+      <div className="rounded-lg border border-border-subtle bg-surface-1 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-tertiary text-sm">Chargement...</div>
+        ) : data.length === 0 ? (
+          <div className="p-8 text-center text-tertiary text-sm">Aucune donnee. Lancez la commande d'import.</div>
+        ) : (
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-custom-border-200">
+                <tr className="border-b border-border-subtle bg-layer-1">
                   {Object.keys(data[0]).filter((k) => !["id", "date_maj"].includes(k)).slice(0, 7).map((k) => (
-                    <th key={k} className="text-left px-4 py-2 text-[10px] font-semibold text-custom-text-400 uppercase">{k.replace(/_/g, " ")}</th>
+                    <th key={k} className="text-left px-4 py-2 text-caption-xs font-semibold text-tertiary uppercase">{k.replace(/_/g, " ")}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.slice(0, 100).map((row, i) => (
-                  <tr key={row.id || i} className="border-b border-custom-border-100 hover:bg-custom-background-90/30">
+                  <tr key={row.id || i} className="border-b border-border-subtle hover:bg-layer-transparent-hover">
                     {Object.entries(row).filter(([k]) => !["id", "date_maj"].includes(k)).slice(0, 7).map(([k, v]) => (
-                      <td key={k} className="px-4 py-2 text-custom-text-200">
-                        {typeof v === "boolean" ? (v ? "Oui" : "Non") :
-                         typeof v === "number" ? (v % 1 === 0 ? v : v.toFixed(2)) :
-                         Array.isArray(v) ? v.join(", ") :
-                         v == null ? "—" : String(v).slice(0, 40)}
+                      <td key={k} className="px-4 py-2 text-secondary">
+                        {typeof v === "boolean" ? (v ? "Oui" : "Non") : typeof v === "number" ? (v % 1 === 0 ? v : v.toFixed(2)) : Array.isArray(v) ? v.join(", ") : v == null ? "\u2014" : String(v).slice(0, 40)}
                       </td>
                     ))}
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-          {data.length > 100 && (
-            <div className="p-3 text-center text-xs text-custom-text-400">
-              Affichage limite a 100 lignes sur {data.length}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab: Scenarios & Simulation ─────────────────────────────────────────────
-
-type SimResult = {
-  activity: { couverts_mois: number; couverts_annuel: number; ca_mensuel: number; ca_annuel: number };
-  staffing: { etp_total: number; masse_chargee_mensuelle: number; masse_chargee_annuelle: number; detail_postes: any[] };
-  matiere: { cout_matiere_mensuel: number; cout_par_couvert: number; niveau_prix: string };
-  fg: { fg_mensuel: number; fg_annuel: number; sous_totaux: Record<string, number> };
-  invest: { invest_total: number; amortissement_mensuel: number };
-  pl: {
-    ca_total: number; ca_total_annuel: number; cout_matiere: number; masse_salariale: number;
-    frais_generaux: number; amortissements: number; total_charges: number;
-    resultat: number; resultat_annuel: number; marge_pct: number; marge_par_couvert: number;
-    ratio_matiere_pct: number; ratio_personnel_pct: number; ratio_fg_pct: number;
-  };
-  kpis: { cout_par_couvert: number; prix_moyen_plateau: number; seuil_rentabilite_couverts: number };
-  score_estime: { total: number; prix: number; concept: number; rh: number; rse: number; qualite: number };
-  _elapsed_ms?: number;
-};
-
-function TabScenarios({ projet, apiBase, toast }: { projet: ProjetAO; apiBase: string; toast: ToastHandle }) {
-  const [params, setParams] = useState<any>({
-    niveau_prix: "prix_standard",
-    prix_admission: 6.50,
-    prix_admission_ext: 8.00,
-    prix_plateau_moyen: 8.50,
-    prix_vente_bpu: 6.00,
-    pct_externes: 0.20,
-    penetration: 0.90,
-    saisonnalite: 1.0,
-    mutualisation: "none",
-    subvention_employeur_pct: 0.40,
-    marge_gestion_pct: 0.06,
-  });
-  const [sim, setSim] = useState<SimResult | null>(null);
-  const [simulating, setSimulating] = useState(false);
-  const [scenarios, setScenarios] = useState<any[]>([]);
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("");
-  const [newScenarioName, setNewScenarioName] = useState("");
-
-  // Load scenarios
-  useEffect(() => {
-    fetch(`${apiBase}/projets/${projet.id}/scenarios/`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => {
-        const arr = Array.isArray(data) ? data : data.results || [];
-        setScenarios(arr);
-        if (arr.length && !selectedScenarioId) {
-          setSelectedScenarioId(arr[0].id);
-          if (arr[0].parametres) setParams({ ...params, ...arr[0].parametres });
-        }
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Debounced simulation
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      setSimulating(true);
-      try {
-        const r = await fetch(`${apiBase}/projets/${projet.id}/simuler/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ parametres: params }),
-        });
-        if (r.ok) setSim(await r.json());
-        else toast.show("Erreur simulation", "err");
-      } finally {
-        setSimulating(false);
-      }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [params, apiBase, projet.id, toast]);
-
-  const saveAsScenario = async () => {
-    const name = newScenarioName || `Scenario ${scenarios.length + 1}`;
-    const r = await fetch(`${apiBase}/projets/${projet.id}/scenarios/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ nom: name, parametres: params, resultats: sim }),
-    });
-    if (r.ok) {
-      const created = await r.json();
-      setScenarios([...scenarios, created]);
-      setSelectedScenarioId(created.id);
-      setNewScenarioName("");
-      toast.show(`Scenario "${name}" sauvegarde`);
-    } else {
-      toast.show("Erreur sauvegarde scenario", "err");
-    }
-  };
-
-  const fmtEur = (v?: number) =>
-    v == null ? "—" : new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
-  const fmtNum = (v?: number) =>
-    v == null ? "—" : new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(v);
-  const fmtPct = (v?: number) => (v == null ? "—" : `${v.toFixed(1)}%`);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-      {/* Sliders */}
-      <div className="lg:col-span-4 rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-          <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">⚙️ Parametres simulation</h2>
-        </div>
-        <div className="p-5 space-y-4">
-          {/* Scenarios saved */}
-          {scenarios.length > 0 && (
-            <Field label="Scenario charge">
-              <select
-                value={selectedScenarioId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setSelectedScenarioId(id);
-                  const s = scenarios.find((x) => x.id === id);
-                  if (s?.parametres) setParams({ ...params, ...s.parametres });
-                }}
-                className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-              >
-                {scenarios.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
-              </select>
-            </Field>
-          )}
-
-          <Field label="Niveau de prix matiere">
-            <select
-              value={params.niveau_prix}
-              onChange={(e) => setParams({ ...params, niveau_prix: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-            >
-              <option value="prix_eco">Economique</option>
-              <option value="prix_standard">Standard</option>
-              <option value="prix_premium">Premium</option>
-              <option value="prix_luxe">Luxe</option>
-            </select>
-          </Field>
-
-          {(projet.mode_gestion === "admission" || projet.mode_gestion === "mixte") && (
-            <SliderField
-              label="Prix admission (€/cvt)"
-              value={params.prix_admission} min={3} max={15} step={0.10}
-              format={(v) => `${v.toFixed(2)} €`}
-              onChange={(v) => setParams({ ...params, prix_admission: v })}
-            />
-          )}
-
-          {projet.mode_gestion === "mixte" && (
-            <SliderField
-              label="% convives externes"
-              value={params.pct_externes} min={0} max={1} step={0.05}
-              format={(v) => `${Math.round(v * 100)}%`}
-              onChange={(v) => setParams({ ...params, pct_externes: v })}
-            />
-          )}
-
-          {projet.mode_gestion === "ticket" && (
-            <SliderField
-              label="Prix plateau moyen (€)"
-              value={params.prix_plateau_moyen} min={5} max={20} step={0.50}
-              format={(v) => `${v.toFixed(2)} €`}
-              onChange={(v) => setParams({ ...params, prix_plateau_moyen: v })}
-            />
-          )}
-
-          {projet.mode_gestion === "masse_frais" && (
-            <SliderField
-              label="Marge gestion (%)"
-              value={params.marge_gestion_pct} min={0} max={0.20} step={0.01}
-              format={(v) => `${(v * 100).toFixed(1)}%`}
-              onChange={(v) => setParams({ ...params, marge_gestion_pct: v })}
-            />
-          )}
-
-          <SliderField
-            label="Penetration convives"
-            value={params.penetration} min={0.3} max={1.0} step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(v) => setParams({ ...params, penetration: v })}
-          />
-
-          <SliderField
-            label="Coefficient saisonnalite"
-            value={params.saisonnalite} min={0.6} max={1.4} step={0.05}
-            format={(v) => `×${v.toFixed(2)}`}
-            onChange={(v) => setParams({ ...params, saisonnalite: v })}
-          />
-
-          {projet.points_de_vente.length > 1 && (
-            <Field label="Mutualisation multi-PdV">
-              <select
-                value={params.mutualisation}
-                onChange={(e) => setParams({ ...params, mutualisation: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-              >
-                <option value="none">Aucune</option>
-                <option value="scenario_1_3">Scenario 1&3 (encadrement -30%)</option>
-                <option value="scenario_2">Scenario 2 (encadrement -50%)</option>
-              </select>
-            </Field>
-          )}
-
-          {/* Save as scenario */}
-          <div className="pt-4 border-t border-custom-border-200">
-            <input
-              value={newScenarioName}
-              onChange={(e) => setNewScenarioName(e.target.value)}
-              placeholder="Nom du scenario"
-              className="w-full px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm mb-2"
-            />
-            <button
-              onClick={saveAsScenario}
-              className="w-full px-4 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90"
-              style={{ background: C.chlorophyle }}
-            >
-              💾 Sauvegarder comme scenario
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* KPIs + P&L */}
-      <div className="lg:col-span-8 space-y-5">
-        {/* Score badge + perf */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            {sim && (
-              <div className="px-4 py-2 rounded-xl flex items-center gap-3" style={{ background: C.terracottaBg }}>
-                <span className="text-2xl font-bold" style={{ color: C.terracotta }}>{sim.score_estime.total}</span>
-                <span className="text-xs text-custom-text-400">SCORE<br/>ESTIME /100</span>
-              </div>
-            )}
-            {simulating && <span className="inline-block w-4 h-4 border-2 border-custom-text-400/30 border-t-custom-text-200 rounded-full animate-spin" />}
-          </div>
-          {sim?._elapsed_ms != null && (
-            <span className="text-[11px] text-custom-text-400">
-              Calcule en {sim._elapsed_ms}ms
-            </span>
-          )}
-        </div>
-
-        {/* KPI Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KPICard label="CA mensuel" value={fmtEur(sim?.pl.ca_total)} sub={`${fmtNum(sim?.activity.couverts_mois)} cvts`} color={C.terracotta} />
-          <KPICard label="Masse salariale" value={fmtEur(sim?.staffing.masse_chargee_mensuelle)} sub={`${sim?.staffing.etp_total.toFixed(1)} ETP`} color={C.chlorophyle} />
-          <KPICard label="Cout matiere" value={fmtEur(sim?.matiere.cout_matiere_mensuel)} sub={`${sim?.matiere.cout_par_couvert.toFixed(2) ?? "—"}€/cvt`} color={C.nude} />
-          <KPICard
-            label="Resultat"
-            value={fmtEur(sim?.pl.resultat)}
-            sub={fmtPct(sim?.pl.marge_pct)}
-            color={(sim?.pl.resultat ?? 0) >= 0 ? C.chlorophyle : C.terracotta}
-          />
-        </div>
-
-        {/* P&L Detail */}
-        <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-          <div className="px-5 py-3 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-            <h3 className="text-sm font-semibold text-custom-text-100">Compte de Resultat (mensuel)</h3>
-          </div>
-          {sim && (
-            <table className="w-full text-sm">
-              <tbody>
-                <PLRow label="CA Total" value={fmtEur(sim.pl.ca_total)} bold />
-                <PLRow label="Cout matiere" value={`- ${fmtEur(sim.pl.cout_matiere)}`} pct={fmtPct(sim.pl.ratio_matiere_pct)} />
-                <PLRow label="Masse salariale chargee" value={`- ${fmtEur(sim.pl.masse_salariale)}`} pct={fmtPct(sim.pl.ratio_personnel_pct)} />
-                <PLRow label="Frais generaux" value={`- ${fmtEur(sim.pl.frais_generaux)}`} pct={fmtPct(sim.pl.ratio_fg_pct)} />
-                <PLRow label="Amortissements" value={`- ${fmtEur(sim.pl.amortissements)}`} />
-                <PLRow label="Total charges" value={`- ${fmtEur(sim.pl.total_charges)}`} bold />
-                <PLRow label="RESULTAT MENSUEL" value={fmtEur(sim.pl.resultat)} bold accent={sim.pl.resultat >= 0 ? C.chlorophyle : C.terracotta} />
-                <PLRow label="Resultat annualise" value={fmtEur(sim.pl.resultat_annuel)} muted />
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Score breakdown */}
-        {sim && (
-          <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-5">
-            <h3 className="text-sm font-semibold text-custom-text-100 mb-3">Decomposition du score estime</h3>
-            <div className="grid grid-cols-5 gap-2">
-              {[
-                { k: "prix", label: "Prix", v: sim.score_estime.prix, max: 40, c: C.terracotta },
-                { k: "concept", label: "Concept", v: sim.score_estime.concept, max: 20, c: C.nude },
-                { k: "rh", label: "RH", v: sim.score_estime.rh, max: 15, c: C.chlorophyle },
-                { k: "rse", label: "RSE", v: sim.score_estime.rse, max: 15, c: C.sauge },
-                { k: "qualite", label: "Qualite", v: sim.score_estime.qualite, max: 10, c: C.charbon },
-              ].map((s) => (
-                <div key={s.k} className="text-center">
-                  <div className="text-2xl font-bold" style={{ color: s.c }}>{s.v}</div>
-                  <div className="text-[10px] text-custom-text-400">/ {s.max}</div>
-                  <div className="text-xs font-medium text-custom-text-200 mt-1">{s.label}</div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
@@ -1345,26 +675,315 @@ function TabScenarios({ projet, apiBase, toast }: { projet: ProjetAO; apiBase: s
   );
 }
 
-function KPICard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+// ─── Tab: Simulation ─────────────────────────────────────────────────────────
+
+type SimResult = {
+  activity: { couverts_mois: number; ca_mensuel: number };
+  staffing: { etp_total: number; masse_chargee_mensuelle: number; detail_postes: any[] };
+  matiere: { cout_matiere_mensuel: number; cout_par_couvert: number };
+  fg: { fg_mensuel: number };
+  invest: { invest_total: number; amortissement_mensuel: number };
+  pl: { ca_total: number; ca_total_annuel: number; cout_matiere: number; masse_salariale: number; frais_generaux: number; amortissements: number; total_charges: number; resultat: number; resultat_annuel: number; marge_pct: number; ratio_matiere_pct: number; ratio_personnel_pct: number; ratio_fg_pct: number };
+  kpis: { cout_par_couvert: number };
+  score_estime: { total: number; prix: number; concept: number; rh: number; rse: number; qualite: number };
+  _elapsed_ms?: number;
+};
+
+function TabScenarios({ projet, apiBase }: { projet: ProjetAO; apiBase: string }) {
+  const [params, setParams] = useState<any>({
+    niveau_prix: "prix_standard", prix_admission: 6.50, prix_plateau_moyen: 8.50, prix_vente_bpu: 6.00,
+    pct_externes: 0.20, penetration: 0.90, saisonnalite: 1.0, mutualisation: "none",
+    subvention_employeur_pct: 0.40, marge_gestion_pct: 0.06,
+  });
+  const [sim, setSim] = useState<SimResult | null>(null);
+  const [simulating, setSimulating] = useState(false);
+  const [scenarios, setScenarios] = useState<any[]>([]);
+  const [newName, setNewName] = useState("");
+  const inputCls = "w-full h-7 px-2 rounded-md border border-border-subtle bg-layer-2 text-primary text-sm";
+
+  useEffect(() => {
+    fetch(`${apiBase}/projets/${projet.id}/scenarios/`, { credentials: "include" })
+      .then((r) => r.json()).then((d) => { const arr = Array.isArray(d) ? d : d.results || []; setScenarios(arr); })
+      .catch(() => {});
+  }, [apiBase, projet.id]);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      setSimulating(true);
+      try {
+        const r = await fetch(`${apiBase}/projets/${projet.id}/simuler/`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({ parametres: params }),
+        });
+        if (r.ok) setSim(await r.json());
+      } finally { setSimulating(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [params, apiBase, projet.id]);
+
+  const saveScenario = async () => {
+    const name = newName || `Scenario ${scenarios.length + 1}`;
+    const r = await fetch(`${apiBase}/projets/${projet.id}/scenarios/`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ nom: name, parametres: params, resultats: sim }),
+    });
+    if (r.ok) { const d = await r.json(); setScenarios([...scenarios, d]); setNewName(""); toast.ok(`Scenario "${name}" sauvegarde`); }
+  };
+
+  const fmtEur = (v?: number) => v == null ? "\u2014" : new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  const fmtPct = (v?: number) => v == null ? "\u2014" : `${v.toFixed(1)}%`;
+
   return (
-    <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 p-4">
-      <div className="text-[10px] font-semibold text-custom-text-400 uppercase tracking-wide">{label}</div>
-      <div className="text-xl font-bold mt-1" style={{ color: color || "var(--color-text-100)" }}>{value}</div>
-      {sub && <div className="text-xs text-custom-text-400 mt-0.5">{sub}</div>}
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      {/* Params panel */}
+      <div className="lg:col-span-4">
+        <Section title="Parametres">
+          <div className="space-y-3">
+            <Field label="Niveau prix matiere">
+              <select value={params.niveau_prix} onChange={(e) => setParams({ ...params, niveau_prix: e.target.value })} className={inputCls}>
+                <option value="prix_eco">Economique</option>
+                <option value="prix_standard">Standard</option>
+                <option value="prix_premium">Premium</option>
+                <option value="prix_luxe">Luxe</option>
+              </select>
+            </Field>
+            <SliderField label="Penetration" value={params.penetration} min={0.3} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setParams({ ...params, penetration: v })} />
+            <SliderField label="Saisonnalite" value={params.saisonnalite} min={0.6} max={1.4} step={0.05} format={(v) => `x${v.toFixed(2)}`} onChange={(v) => setParams({ ...params, saisonnalite: v })} />
+            {projet.points_de_vente.length > 1 && (
+              <Field label="Mutualisation">
+                <select value={params.mutualisation} onChange={(e) => setParams({ ...params, mutualisation: e.target.value })} className={inputCls}>
+                  <option value="none">Aucune</option>
+                  <option value="scenario_1_3">Scenario 1&3 (-30%)</option>
+                  <option value="scenario_2">Scenario 2 (-50%)</option>
+                </select>
+              </Field>
+            )}
+            <div className="pt-3 border-t border-border-subtle">
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nom du scenario" className={inputCls + " mb-2"} />
+              <Button variant="secondary" size="base" className="w-full" onClick={saveScenario}>Sauvegarder scenario</Button>
+            </div>
+          </div>
+        </Section>
+      </div>
+
+      {/* Results panel */}
+      <div className="lg:col-span-8 space-y-4">
+        {sim && (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="px-3 py-1.5 rounded-lg bg-accent-primary/10 flex items-center gap-2">
+                <span className="text-xl font-bold text-accent-primary">{sim.score_estime.total}</span>
+                <span className="text-caption-xs text-tertiary">/ 100</span>
+              </div>
+              {simulating && <span className="inline-block w-4 h-4 border-2 border-border-subtle border-t-accent-primary rounded-full animate-spin" />}
+              {sim._elapsed_ms != null && <span className="text-caption-xs text-tertiary">{sim._elapsed_ms}ms</span>}
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <KPICard label="CA mensuel" value={fmtEur(sim.pl.ca_total)} sub={`${sim.activity.couverts_mois} cvts`} />
+              <KPICard label="Masse salariale" value={fmtEur(sim.staffing.masse_chargee_mensuelle)} sub={`${sim.staffing.etp_total.toFixed(1)} ETP`} />
+              <KPICard label="Cout matiere" value={fmtEur(sim.matiere.cout_matiere_mensuel)} sub={`${sim.matiere.cout_par_couvert.toFixed(2)}\u20AC/cvt`} />
+              <KPICard label="Resultat" value={fmtEur(sim.pl.resultat)} sub={fmtPct(sim.pl.marge_pct)} accent={sim.pl.resultat >= 0} />
+            </div>
+
+            <Section title="Compte de Resultat (mensuel)">
+              <table className="w-full text-sm">
+                <tbody>
+                  <PLRow label="CA Total" value={fmtEur(sim.pl.ca_total)} bold />
+                  <PLRow label="Cout matiere" value={`- ${fmtEur(sim.pl.cout_matiere)}`} pct={fmtPct(sim.pl.ratio_matiere_pct)} />
+                  <PLRow label="Masse salariale" value={`- ${fmtEur(sim.pl.masse_salariale)}`} pct={fmtPct(sim.pl.ratio_personnel_pct)} />
+                  <PLRow label="Frais generaux" value={`- ${fmtEur(sim.pl.frais_generaux)}`} pct={fmtPct(sim.pl.ratio_fg_pct)} />
+                  <PLRow label="Amortissements" value={`- ${fmtEur(sim.pl.amortissements)}`} />
+                  <PLRow label="Total charges" value={`- ${fmtEur(sim.pl.total_charges)}`} bold />
+                  <PLRow label="RESULTAT" value={fmtEur(sim.pl.resultat)} bold accent={sim.pl.resultat >= 0} />
+                  <PLRow label="Resultat annualise" value={fmtEur(sim.pl.resultat_annuel)} muted />
+                </tbody>
+              </table>
+            </Section>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function PLRow({ label, value, pct, bold, muted, accent }: { label: string; value: string; pct?: string; bold?: boolean; muted?: boolean; accent?: string }) {
+// ─── Tab: Documents & Generation ─────────────────────────────────────────────
+
+function TabDocuments({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: string; onSave: () => void }) {
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState<Record<string, boolean>>({});
+  const [scenarios, setScenarios] = useState<any[]>([]);
+  const [selectedScenarioId, setSelectedScenarioId] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch(`${apiBase}/projets/${projet.id}/scenarios/`, { credentials: "include" })
+      .then((r) => r.json()).then((d) => { const arr = Array.isArray(d) ? d : d.results || []; setScenarios(arr); if (arr.length) setSelectedScenarioId(arr[0].id); })
+      .catch(() => {});
+  }, [apiBase, projet.id]);
+
+  const upload = async (file: File) => {
+    setUploading(true);
+    const fd = new FormData(); fd.append("cctp_pdf", file);
+    const resp = await fetch(`${apiBase}/projets/${projet.id}/`, { method: "PATCH", credentials: "include", body: fd });
+    setUploading(false);
+    if (resp.ok) { await onSave(); toast.ok("Document uploade"); } else toast.err("Erreur upload");
+  };
+
+  const generate = async (kind: string) => {
+    setGenerating({ ...generating, [kind]: true });
+    try {
+      const url = kind === "tout" ? `${apiBase}/projets/${projet.id}/generer-tout/` : `${apiBase}/projets/${projet.id}/generer-${kind}/`;
+      const r = await fetch(url, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ scenario_id: selectedScenarioId || null }),
+      });
+      if (!r.ok) { toast.err("Erreur generation"); return; }
+      const blob = await r.blob();
+      const cd = r.headers.get("content-disposition") || "";
+      const m = cd.match(/filename="(.+?)"/);
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = m ? m[1] : `${kind}.xlsx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      toast.ok("Telechargement OK");
+    } finally { setGenerating({ ...generating, [kind]: false }); }
+  };
+
   return (
-    <tr className="border-b border-custom-border-100 last:border-b-0">
-      <td className={`px-5 py-2 text-sm ${bold ? "font-semibold" : ""} ${muted ? "text-custom-text-400" : "text-custom-text-200"}`}>
-        {label}
-      </td>
-      <td className={`px-5 py-2 text-sm text-right tabular-nums ${bold ? "font-bold" : ""} ${muted ? "text-custom-text-400" : ""}`} style={accent ? { color: accent } : {}}>
-        {value}
-      </td>
-      <td className="px-3 py-2 text-xs text-right text-custom-text-400 w-16">{pct || ""}</td>
+    <div className="space-y-6">
+      {/* Upload section */}
+      <Section title="Documents du projet">
+        <div className="rounded-lg border border-border-subtle p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-sm font-medium text-primary">CCTP / Cahier des charges</div>
+              <div className="text-xs text-tertiary">{projet.cctp_pdf ? "Document charge" : "Aucun document"}</div>
+            </div>
+            <label>
+              <Button variant="secondary" size="sm" className="cursor-pointer">{uploading ? "Upload..." : projet.cctp_pdf ? "Remplacer" : "Uploader"}</Button>
+              <input ref={inputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+            </label>
+          </div>
+          {!projet.cctp_pdf && (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f?.type === "application/pdf") upload(f); }}
+              onClick={() => inputRef.current?.click()}
+              className={`py-8 rounded-lg text-center cursor-pointer border-2 border-dashed transition-colors ${
+                dragging ? "border-accent-primary bg-accent-primary/5" : "border-border-subtle hover:border-border-strong"
+              }`}
+            >
+              <div className="text-2xl mb-1">\uD83D\uDCC4</div>
+              <div className="text-sm text-secondary">{dragging ? "Deposer ici" : "Glisser-deposer ou cliquer"}</div>
+              <div className="text-xs text-tertiary mt-1">PDF uniquement</div>
+            </div>
+          )}
+          {projet.cctp_pdf && <iframe src={projet.cctp_pdf} className="w-full h-52 rounded border border-border-subtle mt-2" title="CCTP" />}
+        </div>
+      </Section>
+
+      {/* Generation section */}
+      <Section title="Generation Excel">
+        {scenarios.length > 0 && (
+          <div className="mb-4">
+            <Field label="Scenario">
+              <select value={selectedScenarioId} onChange={(e) => setSelectedScenarioId(e.target.value)}
+                className="w-full max-w-sm h-8 px-3 rounded-md border border-border-subtle bg-layer-2 text-primary text-sm"
+              >
+                {scenarios.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+              </select>
+            </Field>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          {[
+            { kind: "bpu", icon: "\uD83D\uDCCA", title: "BPU Alimentaires", desc: "25 onglets" },
+            { kind: "budget", icon: "\uD83D\uDCB6", title: "Budget Previsionnel", desc: "5 onglets" },
+            { kind: "cout-fixe", icon: "\uD83D\uDCCB", title: "Cout Fixe", desc: "20 onglets" },
+          ].map((c) => (
+            <button key={c.kind} onClick={() => generate(c.kind)} disabled={generating[c.kind]}
+              className="p-4 rounded-lg border border-border-subtle bg-layer-1 text-left hover:border-border-strong hover:shadow-sm transition-all disabled:opacity-50"
+            >
+              <div className="text-2xl mb-2">{c.icon}</div>
+              <div className="text-sm font-semibold text-primary">{c.title}</div>
+              <div className="text-xs text-tertiary">{c.desc}</div>
+              {generating[c.kind] && <span className="inline-block w-3 h-3 border border-border-subtle border-t-accent-primary rounded-full animate-spin mt-2" />}
+            </button>
+          ))}
+        </div>
+
+        <Button variant="primary" size="xl" className="w-full" onClick={() => generate("tout")} disabled={generating["tout"]} loading={generating["tout"]}>
+          Telecharger tout le dossier (.zip)
+        </Button>
+      </Section>
+    </div>
+  );
+}
+
+// ─── Shared Components ───────────────────────────────────────────────────────
+
+function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border-subtle bg-surface-1 overflow-hidden">
+      <div className="px-5 py-3 border-b border-border-subtle bg-layer-1 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-primary">{title}</h2>
+        {action}
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-caption-xs font-semibold text-tertiary uppercase tracking-wide mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function TrancheBadge({ tranche }: { tranche: number }) {
+  const cls = tranche <= 3 ? "bg-success-primary/10 text-success-secondary"
+    : tranche <= 6 ? "bg-accent-primary/10 text-accent-primary"
+    : "bg-warning-primary/10 text-warning-secondary";
+  return (
+    <div className={`flex flex-col items-center px-2.5 py-1 rounded-md ${cls}`}>
+      <span className="text-sm font-bold leading-none">T{tranche}</span>
+      <span className="text-caption-xs uppercase tracking-wider opacity-80">tranche</span>
+    </div>
+  );
+}
+
+function Stat({ value, label }: { value: number | string; label: string }) {
+  return (
+    <div className="text-center min-w-[40px]">
+      <div className="text-base font-bold text-primary leading-none">{value}</div>
+      <div className="text-caption-xs text-tertiary uppercase tracking-wider mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+function KPICard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
+  return (
+    <div className="p-3 rounded-lg bg-layer-1 border border-border-subtle">
+      <div className="text-caption-xs text-tertiary uppercase tracking-wide">{label}</div>
+      <div className={`text-lg font-bold mt-1 ${accent === false ? "text-danger-secondary" : accent === true ? "text-success-secondary" : "text-primary"}`}>{value}</div>
+      {sub && <div className="text-xs text-tertiary mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function PLRow({ label, value, pct, bold, muted, accent }: { label: string; value: string; pct?: string; bold?: boolean; muted?: boolean; accent?: boolean }) {
+  return (
+    <tr className="border-b border-border-subtle last:border-b-0">
+      <td className={`px-4 py-2 text-sm ${bold ? "font-semibold text-primary" : muted ? "text-tertiary" : "text-secondary"}`}>{label}</td>
+      <td className={`px-4 py-2 text-sm text-right tabular-nums ${bold ? "font-bold" : ""} ${
+        accent === true ? "text-success-secondary" : accent === false ? "text-danger-secondary" : muted ? "text-tertiary" : "text-primary"
+      }`}>{value}</td>
+      <td className="px-3 py-2 text-xs text-right text-tertiary w-16">{pct || ""}</td>
     </tr>
   );
 }
@@ -1376,153 +995,10 @@ function SliderField({ label, value, min, max, step, format, onChange }: {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="text-[11px] font-semibold text-custom-text-400 uppercase tracking-wide">{label}</label>
-        <span className="text-sm font-semibold" style={{ color: C.terracotta }}>
-          {format ? format(value) : value}
-        </span>
+        <label className="text-caption-xs font-semibold text-tertiary uppercase tracking-wide">{label}</label>
+        <span className="text-sm font-semibold text-accent-primary">{format ? format(value) : value}</span>
       </div>
-      <input
-        type="range"
-        min={min} max={max} step={step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full"
-      />
-    </div>
-  );
-}
-
-// ─── Tab: Generation ─────────────────────────────────────────────────────────
-
-function TabGeneration({ projet, apiBase, toast }: { projet: ProjetAO; apiBase: string; toast: ToastHandle }) {
-  const [scenarios, setScenarios] = useState<any[]>([]);
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("");
-  const [generating, setGenerating] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    fetch(`${apiBase}/projets/${projet.id}/scenarios/`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => {
-        const arr = Array.isArray(data) ? data : data.results || [];
-        setScenarios(arr);
-        if (arr.length) setSelectedScenarioId(arr[0].id);
-      })
-      .catch(() => {});
-  }, [apiBase, projet.id]);
-
-  const generate = async (kind: string, ext: string = "xlsx") => {
-    setGenerating({ ...generating, [kind]: true });
-    try {
-      const url = kind === "tout"
-        ? `${apiBase}/projets/${projet.id}/generer-tout/`
-        : `${apiBase}/projets/${projet.id}/generer-${kind}/`;
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ scenario_id: selectedScenarioId || null }),
-      });
-      if (!r.ok) {
-        toast.show("Erreur generation", "err");
-        return;
-      }
-      const blob = await r.blob();
-      const cd = r.headers.get("content-disposition") || "";
-      const m = cd.match(/filename="(.+?)"/);
-      const fname = m ? m[1] : `${kind}.${ext}`;
-      const url2 = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url2;
-      a.download = fname;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url2);
-      toast.show("Telechargement OK");
-    } catch (e: any) {
-      toast.show("Erreur: " + e.message, "err");
-    } finally {
-      setGenerating({ ...generating, [kind]: false });
-    }
-  };
-
-  const cards = [
-    { kind: "bpu", icon: "📊", title: "BPU Alimentaires", desc: ".xlsx · 25 onglets · prix unitaires", count: "25" },
-    { kind: "budget", icon: "💶", title: "Budget Previsionnel", desc: ".xlsx · 5 onglets · activite + P&L", count: "5" },
-    { kind: "cout-fixe", icon: "📋", title: "Cout Fixe Multi-Scenarios", desc: ".xlsx · 20 onglets · 3 scenarios", count: "20" },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-custom-border-200" style={{ background: "rgba(90,85,82,0.04)" }}>
-          <h2 className="text-sm font-semibold text-custom-text-100 flex items-center gap-2">📦 Generation des documents AO</h2>
-        </div>
-        <div className="p-6">
-          {scenarios.length > 0 ? (
-            <Field label="Scenario a utiliser pour la generation">
-              <select
-                value={selectedScenarioId}
-                onChange={(e) => setSelectedScenarioId(e.target.value)}
-                className="w-full max-w-md px-3 py-2 rounded-lg border border-custom-border-200 bg-custom-background-90 text-custom-text-100 text-sm"
-              >
-                {scenarios.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
-              </select>
-            </Field>
-          ) : (
-            <div className="px-4 py-3 rounded-lg text-sm" style={{ background: C.terracottaBg, color: C.terracotta }}>
-              ℹ️ Aucun scenario sauvegarde — la generation utilisera les parametres par defaut.
-              Cree un scenario depuis l'onglet "Scenarios & Simulation" pour customiser.
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-            {cards.map((c) => (
-              <button
-                key={c.kind}
-                onClick={() => generate(c.kind)}
-                disabled={generating[c.kind]}
-                className="p-5 rounded-xl border-2 border-custom-border-200 text-left hover:border-custom-border-300 transition-all hover:shadow-md disabled:opacity-50 relative"
-              >
-                <div className="text-3xl mb-3">{c.icon}</div>
-                <div className="font-semibold text-sm text-custom-text-100 mb-1">{c.title}</div>
-                <div className="text-xs text-custom-text-400">{c.desc}</div>
-                {generating[c.kind] && (
-                  <div className="absolute top-3 right-3">
-                    <span className="inline-block w-4 h-4 border-2 border-custom-text-400/30 border-t-custom-text-200 rounded-full animate-spin" />
-                  </div>
-                )}
-                <div className="absolute bottom-3 right-4 text-[10px] uppercase tracking-wide text-custom-text-400 font-semibold">
-                  Telecharger →
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-6 flex justify-center pt-6 border-t border-custom-border-200">
-            <button
-              onClick={() => generate("tout", "zip")}
-              disabled={generating["tout"]}
-              className="px-6 py-3 rounded-xl text-white text-base font-semibold hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
-              style={{ background: C.terracotta }}
-            >
-              {generating["tout"] && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-              📦 Telecharger tout le dossier (.zip)
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Shared Components ───────────────────────────────────────────────────────
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-[11px] font-semibold text-custom-text-400 uppercase tracking-wide mb-1.5">{label}</label>
-      {children}
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} className="w-full accent-accent-primary" />
     </div>
   );
 }
