@@ -5,6 +5,8 @@ from plane.configurateur.views import (
     MercurialeViewSet, PosteTypeViewSet, AOStatsView,
     ChangeStatutView, DupliquerView,
     SimulerView, GenererBPUView, GenererBudgetView, GenererCoutFixeView, GenererToutView,
+    FraisGenerauxTypeViewSet, InvestissementTypeViewSet,
+    TauxChargesViewSet, TrancheFreqViewSet, ProduitAlimentaireViewSet,
 )
 
 urlpatterns = [
@@ -31,4 +33,11 @@ urlpatterns = [
     path("postes-types/", PosteTypeViewSet.as_view({"get": "list"}), name="ao-postes"),
     # Stats
     path("stats/", AOStatsView.as_view(), name="ao-stats"),
+    # Sprint 2.5 : Referentiels
+    path("referentiels/frais-generaux/", FraisGenerauxTypeViewSet.as_view({"get": "list"}), name="ao-ref-fg"),
+    path("referentiels/investissements/", InvestissementTypeViewSet.as_view({"get": "list"}), name="ao-ref-invest"),
+    path("referentiels/taux-charges/", TauxChargesViewSet.as_view({"get": "list"}), name="ao-ref-taux"),
+    path("referentiels/tranches/", TrancheFreqViewSet.as_view({"get": "list"}), name="ao-ref-tranches"),
+    path("referentiels/postes/", PosteTypeViewSet.as_view({"get": "list"}), name="ao-ref-postes"),
+    path("referentiels/produits/", ProduitAlimentaireViewSet.as_view({"get": "list"}), name="ao-ref-produits"),
 ]

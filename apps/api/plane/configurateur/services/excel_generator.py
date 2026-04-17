@@ -196,21 +196,86 @@ class BudgetGenerator(BaseGenerator):
 # ═══════════════════════════════════════════════════════════════════════════
 
 class BPUGenerator(BaseGenerator):
-    """BPU : on prend le template tel quel, on n'ajuste que les references projet."""
+    """BPU : template enrichi avec contexte projet + suppression onglets non pertinents."""
     template_path = TEMPLATE_BPU
 
+    # Mapping type_pdv -> onglets a garder
+    TYPE_PDV_SHEETS = {
+        "self": ["Catégories Self", "Prix Self", "Analyse Self service", "Analyse PLATEAU MOYEN",
+                 "MENU ECO ", "REST  PRIX COMMUNS", "REST Structure offre ", "REST Gradation de prix",
+                 "REST Prix Catégories ", "REST Grammages "],
+        "cafeteria": ["Structure offre ATRIUM CAFE", "Prix Boissons ATRIUM CAFE", "Analyse Caféteria"],
+        "dflab": [" DFLab PRIX COMMUNS ", "DFLab Prix ", "DFLab Structure offre", "DFLab Prix formules"],
+        "room_service": ["Prix Room service"],
+        "club_vip": ["Prix Club - VIP"],
+        "brasserie": ["Prix Brasserie"],
+        "da": ["Prix DA"],
+    }
+    ALWAYS_KEEP = ["Tranches de fréq. AO", "Analyse 10 menus types", "Analyse RR", "Prix Boulangerie"]
+
     def _fill(self, wb):
-        # Le template BPU contient deja toutes les structures/grammages/prix.
-        # On le copie tel quel (template = catalogue de reference EMPREINTES).
-        # On ajoute uniquement le contexte projet sur l'onglet "Tranches de fréq. AO"
-        # (qui sert d'index, en haut A1).
+        # 1. Context projet sur page de garde
         if "Tranches de fréq. AO" in wb.sheetnames:
             ws = wb["Tranches de fréq. AO"]
-            try:
-                ws["L1"] = "AO {} - {}".format(self.projet.client, self.projet.nom)
-                ws["L1"].font = Font(bold=True, color=EMPREINTES_TERRACOTTA)
-            except Exception:
-                pass
+            ws["L1"] = "AO {} - {}".format(self.projet.client, self.projet.nom)
+            ws["L1"].font = Font(bold=True, color=EMPREINTES_TERRACOTTA)
+
+            # Fill tranches from DB
+            from plane.configurateur.models import TrancheFrequentation
+            tranches = TrancheFrequentation.objects.all().order_by("numero")
+            for i, t in enumerate(tranches):
+                row = 4 + i  # starting row for tranches
+                if row <= ws.max_row:
+                    ws.cell(row=row, column=1, value="Tranche {}".format(t.numero))
+                    ws.cell(row=row, column=2, value=t.borne_min)
+                    ws.cell(row=row, column=3, value=t.borne_max)
+                    ws.cell(row=row, column=4, value=t.mediane)
+
+        # 2. Supprimer onglets non pertinents (garder que PdV du projet)
+        pdv_types = set(p.type_pdv for p in self.projet.points_de_vente.all())
+        sheets_to_keep = set(self.ALWAYS_KEEP)
+        for ptype in pdv_types:
+            sheets_to_keep.update(self.TYPE_PDV_SHEETS.get(ptype, []))
+
+        for sname in list(wb.sheetnames):
+            if sname not in sheets_to_keep:
+                try:
+                    del wb[sname]
+                except Exception:
+                    pass
+
+        # 3. Fill produits from DB if "Prix Self" exists
+        if "Prix Self" in wb.sheetnames:
+            self._fill_prix_self(wb["Prix Self"])
+
+    def _fill_prix_self(self, ws):
+        """Fill prix from ProduitAlimentaire or ProjetAOPrix overrides."""
+        from plane.configurateur.models import ProduitAlimentaire, ProjetAOPrix
+
+        produits = ProduitAlimentaire.objects.filter(actif=True, types_pdv__contains=["self"]).order_by("famille", "designation")
+        overrides = {}
+        try:
+            overrides = {po.produit_id: po.prix_ht for po in ProjetAOPrix.objects.filter(projet_ao=self.projet)}
+        except Exception:
+            pass
+
+        # Don't overwrite existing template rows — just fill empty prix_ht cells
+        for r in range(7, ws.max_row + 1):
+            designation_cell = ws.cell(r, 1).value
+            if not designation_cell:
+                continue
+            # Check if prix_ht (col D) is empty
+            prix_cell = ws.cell(r, 4)
+            if prix_cell.value is not None:
+                continue
+            # Try to match a product by designation
+            desig = str(designation_cell).strip().lower()
+            for p in produits:
+                if p.designation.lower() == desig:
+                    prix = float(overrides.get(p.id, p.prix_ht_reference or 0))
+                    if prix > 0:
+                        prix_cell.value = prix
+                    break
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -220,53 +285,197 @@ class BPUGenerator(BaseGenerator):
 class CoutFixeGenerator(BaseGenerator):
     template_path = TEMPLATE_COUTFIXE
 
+    # Columns for each tranche (1-5) in the personnel sheet
+    TRANCHE_COLS_PERSONNEL = [
+        (1, "G"), (2, "J"), (3, "M"), (4, "P"), (5, "S"),
+        (6, "V"), (7, "Y"), (8, "AB"), (9, "AE"), (10, "AH"),
+    ]
+
     def _fill(self, wb):
-        # Le template contient 3 jeux de scenarios (suffixes _1&3, _2, _X)
-        # Pour le MVP : on alimente les 5 onglets "X" (scenario libre) avec les data Planer
         sim = self.simulation
-        masse_chargee = sim["staffing"]["masse_chargee_mensuelle"]
-        nb_etp = sim["staffing"]["etp_total"]
-        invest_total = sim["invest"]["invest_total"]
-        ca_mens = sim["pl"]["ca_total"]
-        resultat_mens = sim["pl"]["resultat"]
 
-        # Onglet "Synthèse Coûts fixes_X" : ecrit les inputs principaux dans les cellules libres
-        if "Synthèse Coûts fixes_X" in wb.sheetnames:
-            ws = wb["Synthèse Coûts fixes_X"]
-            # On ecrit le titre du projet (cellule libre supposee O1 ou similaire)
-            try:
-                ws["A1"] = "Synthese Couts Fixes - {} - {}".format(self.projet.client, self.scenario.nom if self.scenario else "Scenario")
-                ws["A1"].font = Font(bold=True, size=14, color=EMPREINTES_TERRACOTTA)
-            except Exception:
-                pass
+        # Fill all _X sheets
+        self._fill_personnel_x(wb, sim)
+        self._fill_fg_x(wb, sim)
+        self._fill_invest_x(wb, sim)
+        self._fill_ce_flash_x(wb, sim)
+        self._fill_titre_sheets(wb)
 
-        # Onglet "ACTIVITES" : on ecrit le nom du projet dans une cellule libre
-        if "ACTIVITES" in wb.sheetnames:
-            ws = wb["ACTIVITES"]
-            try:
-                ws["A1"] = "AO {} - PROJET {}".format(self.projet.client, self.projet.nom)
-            except Exception:
-                pass
+    def _fill_titre_sheets(self, wb):
+        """Add project title to key sheets."""
+        title = "AO {} - {}".format(self.projet.client, self.projet.nom)
+        title_font = Font(bold=True, color=EMPREINTES_TERRACOTTA)
 
-        # Onglet "CE Flash_X" : compte d'exploitation flash
-        if "CE Flash_X" in wb.sheetnames:
-            ws = wb["CE Flash_X"]
-            try:
-                ws["A1"] = "CE Flash - {}".format(self.projet.client)
-                ws["A1"].font = Font(bold=True, size=12, color=EMPREINTES_TERRACOTTA)
-                # Inputs cles dans la zone libre
-                ws["B3"] = "Nb ETP"
-                ws["C3"] = nb_etp
-                ws["B4"] = "Masse salariale mensuelle"
-                ws["C4"] = masse_chargee
-                ws["B5"] = "CA mensuel"
-                ws["C5"] = ca_mens
-                ws["B6"] = "Resultat mensuel"
-                ws["C6"] = resultat_mens
-                ws["B7"] = "Invest total"
-                ws["C7"] = invest_total
-            except Exception as e:
-                logger.warning("CE Flash fill failed: %s", e)
+        for sname in ["Synthèse Coûts fixes_X", "ACTIVITES", "Programme ouverture_X"]:
+            if sname in wb.sheetnames:
+                ws = wb[sname]
+                ws["A3"] = title if sname == "ACTIVITES" else title
+                ws.cell(row=3, column=1).font = title_font
+
+    def _fill_personnel_x(self, wb, sim):
+        """Fill 'Frais de personnel_X' with postes from DB."""
+        sname = "Frais de personnel_X"
+        if sname not in wb.sheetnames:
+            return
+        ws = wb[sname]
+
+        from plane.configurateur.models import PosteType, TauxChargesSociales, MatriceStaffing
+
+        # Write client name
+        ws["A3"] = self.projet.client
+        ws["A3"].font = Font(bold=True, color=EMPREINTES_TERRACOTTA)
+
+        # Write postes : each PosteType has an ordre_excel = row number in this sheet
+        postes = PosteType.objects.filter(actif=True).order_by("ordre_excel")
+        for poste in postes:
+            row = poste.ordre_excel
+            if row < 7 or row > 55:
+                continue
+
+            # Col A = label
+            ws.cell(row=row, column=1, value=poste.label_excel or poste.nom)
+            # Col C = salaire de base
+            ws.cell(row=row, column=3, value=float(poste.salaire_brut_mensuel))
+
+            # Fill nb ETP by tranche from MatriceStaffing
+            pdv_types = [p.type_pdv for p in self.projet.points_de_vente.all()]
+            for tranche_num, col_letter in self.TRANCHE_COLS_PERSONNEL[:5]:
+                total_etp = Decimal("0")
+                for ms in MatriceStaffing.objects.filter(
+                    poste=poste, tranche=tranche_num, type_pdv__in=pdv_types
+                ):
+                    total_etp += ms.nb_etp
+
+                if total_etp > 0:
+                    from openpyxl.utils import column_index_from_string
+                    col_idx = column_index_from_string(col_letter)
+                    ws.cell(row=row, column=col_idx, value=float(total_etp))
+
+        # Write taux de charges (row 59)
+        for tc in TauxChargesSociales.objects.all():
+            for t_num, col_letter in self.TRANCHE_COLS_PERSONNEL:
+                if t_num == tc.tranche:
+                    from openpyxl.utils import column_index_from_string
+                    col_idx = column_index_from_string(col_letter)
+                    ws.cell(row=59, column=col_idx, value=float(tc.taux))
+
+    def _fill_fg_x(self, wb, sim):
+        """Fill 'Frais Généraux_X' with FG types from DB."""
+        sname = "Frais Généraux_X"
+        if sname not in wb.sheetnames:
+            return
+        ws = wb[sname]
+
+        from plane.configurateur.models import FraisGenerauxType, FraisGenerauxBareme, ProjetAOFG
+
+        ws["A3"] = self.projet.client
+        ws["A3"].font = Font(bold=True, color=EMPREINTES_TERRACOTTA)
+
+        # nb tranches
+        ws["A2"] = 5
+
+        # Build overrides lookup
+        overrides = {}
+        try:
+            for o in ProjetAOFG.objects.filter(projet_ao=self.projet):
+                overrides[(o.fg_type_id, o.tranche)] = o.montant
+        except Exception:
+            pass
+
+        # Each FG type has an ordre = row in the sheet
+        fg_types = FraisGenerauxType.objects.all().order_by("ordre")
+        for fg in fg_types:
+            row = fg.ordre
+            if row < 7 or row > 95:
+                continue
+
+            # Write montant for tranche 1 in col G (column 7)
+            montant = float(fg.montant_reference)
+
+            # Check for override
+            override = overrides.get((fg.id, 1))
+            if override is not None:
+                montant = float(override)
+
+            if montant > 0:
+                ws.cell(row=row, column=7, value=montant)
+
+            # Also fill baremes for other tranches
+            for bareme in FraisGenerauxBareme.objects.filter(fg_type=fg):
+                t_col = 7 + bareme.tranche  # col H=T2, I=T3, J=T4, K=T5
+                ov = overrides.get((fg.id, bareme.tranche))
+                ws.cell(row=row, column=t_col, value=float(ov or bareme.montant))
+
+    def _fill_invest_x(self, wb, sim):
+        """Fill 'Invest, valorisation_X' with invest types from DB."""
+        sname = "Invest, valorisation_X"
+        if sname not in wb.sheetnames:
+            return
+        ws = wb[sname]
+
+        from plane.configurateur.models import InvestissementType
+
+        ws["B3"] = self.projet.client
+        ws["B3"].font = Font(bold=True, color=EMPREINTES_TERRACOTTA)
+
+        for inv in InvestissementType.objects.all().order_by("ordre"):
+            row = inv.ordre
+            if row < 7 or row > 60:
+                continue
+            # Col B = label
+            ws.cell(row=row, column=2, value=inv.libelle)
+            # Col E = quantite
+            ws.cell(row=row, column=5, value=inv.quantite_defaut)
+            # Col G = montant tranche 1
+            montant = float(inv.montant_unitaire * inv.quantite_defaut)
+            if montant > 0:
+                ws.cell(row=row, column=7, value=montant)
+
+    def _fill_ce_flash_x(self, wb, sim):
+        """Fill 'CE Flash_X' with KPIs from SimulationEngine."""
+        sname = "CE Flash_X"
+        if sname not in wb.sheetnames:
+            return
+        ws = wb[sname]
+
+        couverts = max(sim["activity"]["couverts_mois"], 1)
+        ca_total = sim["pl"]["ca_total"]
+        masse_sal = sim["staffing"]["masse_chargee_mensuelle"]
+        fg = sim["fg"]["fg_mensuel"]
+        matiere = sim["matiere"]["cout_matiere_mensuel"]
+
+        # Site name
+        ws["C2"] = self.projet.client
+        ws["C2"].font = Font(bold=True, color=EMPREINTES_TERRACOTTA)
+
+        # Frequentation
+        max_cvts = max((p.couverts_jour_cible for p in self.projet.points_de_vente.all()), default=0)
+        ws["C6"] = max_cvts  # freq max
+        ws["C7"] = int(couverts / 21)  # freq moyenne jour
+        ws["C8"] = couverts  # freq mois
+        ws["C9"] = couverts * 12  # freq annuelle
+
+        # CA par couvert
+        ca_par_cvt = ca_total / couverts if couverts else 0
+        ws["C12"] = round(ca_par_cvt, 2)  # prestation alimentaire / couvert
+
+        # Frais per couvert
+        ws["C16"] = round(masse_sal / couverts, 2) if couverts else 0  # frais personnel / cvt
+        ws["C17"] = round(fg / couverts, 2) if couverts else 0  # FG / cvt
+
+        # Ratios
+        if ca_total > 0:
+            ws["C20"] = round(matiere / ca_total, 2)  # % alimentaire Self
+
+        # Frais de siege
+        ws["C33"] = float(self.projet.pct_frais_siege) / 100
+        # Produits sur achats
+        ws["D28"] = float(self.projet.pct_produits_achats) / 100
+
+        # Investissements
+        ws["H25"] = self.projet.duree_contrat_annees
+        ws["H27"] = sim["invest"]["invest_total"]
+        ws["H28"] = 0.7  # impact admission par defaut
 
 
 # ═══════════════════════════════════════════════════════════════════════════

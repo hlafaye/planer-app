@@ -2,6 +2,8 @@
 from rest_framework import serializers
 from plane.configurateur.models import (
     Mercuriale, PosteType, ProjetAO, PointDeVente, ScenarioAO,
+    FraisGenerauxType, InvestissementType, TauxChargesSociales,
+    TrancheFrequentation, ProduitAlimentaire,
 )
 
 
@@ -62,3 +64,37 @@ class ProjetAOSerializer(serializers.ModelSerializer):
         model = ProjetAO
         fields = "__all__"
         read_only_fields = ["id", "workspace", "created_by", "updated_by", "created_at", "updated_at"]
+
+
+# Sprint 2.5 : Referentiels serializers
+
+class FraisGenerauxTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FraisGenerauxType
+        fields = "__all__"
+
+
+class InvestissementTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InvestissementType
+        fields = "__all__"
+
+
+class TauxChargesSocialesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TauxChargesSociales
+        fields = "__all__"
+
+
+class TrancheFreqSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TrancheFrequentation
+        fields = "__all__"
+
+
+class ProduitAlimentaireSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProduitAlimentaire
+        fields = ["id", "designation", "famille", "gamme", "categorie",
+                  "grammage_net_min", "grammage_net_max", "prix_ht_reference",
+                  "types_pdv", "actif"]

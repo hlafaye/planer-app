@@ -13,11 +13,15 @@ from plane.authentication.session import BaseSessionAuthentication
 from plane.db.models import Workspace
 from plane.configurateur.models import (
     Mercuriale, PosteType, ProjetAO, PointDeVente, ScenarioAO,
-    CalculSnapshot,
+    CalculSnapshot, FraisGenerauxType, InvestissementType,
+    TauxChargesSociales, TrancheFrequentation, ProduitAlimentaire,
 )
 from plane.configurateur.serializers import (
     MercurialeSerializer, PosteTypeSerializer,
     ProjetAOSerializer, ProjetAOListSerializer,
+    FraisGenerauxTypeSerializer, InvestissementTypeSerializer,
+    TauxChargesSocialesSerializer, TrancheFreqSerializer,
+    ProduitAlimentaireSerializer,
     PointDeVenteSerializer, ScenarioAOSerializer,
 )
 
@@ -280,3 +284,30 @@ class AOStatsView(AOAuthMixin, APIView):
             "perdus": projets.filter(statut="perdu").count(),
             "brouillons": projets.filter(statut="draft").count(),
         })
+
+
+# ═══ Sprint 2.5 : Referentiels API ═══════════════════════════════════════
+
+class FraisGenerauxTypeViewSet(AOAuthMixin, ModelViewSet):
+    serializer_class = FraisGenerauxTypeSerializer
+    queryset = FraisGenerauxType.objects.all().order_by("ordre")
+
+
+class InvestissementTypeViewSet(AOAuthMixin, ModelViewSet):
+    serializer_class = InvestissementTypeSerializer
+    queryset = InvestissementType.objects.all().order_by("ordre")
+
+
+class TauxChargesViewSet(AOAuthMixin, ModelViewSet):
+    serializer_class = TauxChargesSocialesSerializer
+    queryset = TauxChargesSociales.objects.all().order_by("tranche")
+
+
+class TrancheFreqViewSet(AOAuthMixin, ModelViewSet):
+    serializer_class = TrancheFreqSerializer
+    queryset = TrancheFrequentation.objects.all().order_by("numero")
+
+
+class ProduitAlimentaireViewSet(AOAuthMixin, ModelViewSet):
+    serializer_class = ProduitAlimentaireSerializer
+    queryset = ProduitAlimentaire.objects.filter(actif=True).order_by("famille", "designation")

@@ -211,7 +211,8 @@ export default function ProjetAODetailPage() {
     { key: "pdv", label: `Points de Vente (${projet.points_de_vente.length})`, icon: "\uD83C\uDFE2" },
     { key: "gestion", label: "Mode de gestion", icon: "\uD83D\uDCCA" },
     { key: "scoring", label: "Scoring CCTP", icon: "\uD83C\uDFAF" },
-    { key: "scenarios", label: "Scenarios & Simulation", icon: "\u2728" },
+    { key: "referentiels", label: "Referentiels", icon: "\uD83D\uDCD6" },
+    { key: "scenarios", label: "Simulation", icon: "\u2728" },
     { key: "docs", label: "Documents", icon: "\uD83D\uDCC4" },
     { key: "generation", label: "Generation", icon: "\uD83D\uDCE6" },
   ];
@@ -318,6 +319,7 @@ export default function ProjetAODetailPage() {
         {activeTab === "pdv" && <TabPointsDeVente projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
         {activeTab === "gestion" && <TabModeGestion projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
         {activeTab === "scoring" && <TabScoring projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
+        {activeTab === "referentiels" && <TabReferentiels projet={projet} apiBase={apiBase} toast={toast} />}
         {activeTab === "scenarios" && <TabScenarios projet={projet} apiBase={apiBase} toast={toast} />}
         {activeTab === "docs" && <TabDocuments projet={projet} apiBase={apiBase} onSave={fetchProjet} toast={toast} />}
         {activeTab === "generation" && <TabGeneration projet={projet} apiBase={apiBase} toast={toast} />}
@@ -939,6 +941,104 @@ function DocUploadZone({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Tab: Referentiels ───────────────────────────────────────────────────────
+
+function TabReferentiels({ projet, apiBase, toast }: { projet: ProjetAO; apiBase: string; toast: ToastHandle }) {
+  const [subTab, setSubTab] = useState("postes");
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const SUBTABS = [
+    { key: "postes", label: "Postes & Staffing", endpoint: "referentiels/postes/" },
+    { key: "fg", label: "Frais Generaux", endpoint: "referentiels/frais-generaux/" },
+    { key: "invest", label: "Investissements", endpoint: "referentiels/investissements/" },
+    { key: "taux", label: "Taux Charges", endpoint: "referentiels/taux-charges/" },
+    { key: "tranches", label: "Tranches", endpoint: "referentiels/tranches/" },
+    { key: "produits", label: "Produits", endpoint: "referentiels/produits/" },
+  ];
+
+  const currentSub = SUBTABS.find((s) => s.key === subTab)!;
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${apiBase}/${currentSub.endpoint}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => {
+        setData(Array.isArray(d) ? d : d.results || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [subTab, apiBase, currentSub.endpoint]);
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tabs */}
+      <div className="flex gap-1 flex-wrap">
+        {SUBTABS.map((st) => (
+          <button
+            key={st.key}
+            onClick={() => setSubTab(st.key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              subTab === st.key
+                ? "text-white"
+                : "border border-custom-border-200 text-custom-text-400 hover:text-custom-text-200"
+            }`}
+            style={subTab === st.key ? { background: C.terracotta } : {}}
+          >
+            {st.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="rounded-xl border border-custom-border-200 bg-custom-background-100 overflow-hidden">
+        <div className="px-6 py-3 border-b border-custom-border-200 flex items-center justify-between" style={{ background: "rgba(90,85,82,0.04)" }}>
+          <h2 className="text-sm font-semibold text-custom-text-100">
+            📖 {currentSub.label} ({data.length})
+          </h2>
+          <span className="text-[10px] text-custom-text-400 uppercase tracking-wide">Referentiel EMPREINTES</span>
+        </div>
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="p-8 text-center text-custom-text-400 text-sm">Chargement...</div>
+          ) : data.length === 0 ? (
+            <div className="p-8 text-center text-custom-text-400 text-sm">Aucune donnee. Lancez la commande d'import.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-custom-border-200">
+                  {Object.keys(data[0]).filter((k) => !["id", "date_maj"].includes(k)).slice(0, 7).map((k) => (
+                    <th key={k} className="text-left px-4 py-2 text-[10px] font-semibold text-custom-text-400 uppercase">{k.replace(/_/g, " ")}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.slice(0, 100).map((row, i) => (
+                  <tr key={row.id || i} className="border-b border-custom-border-100 hover:bg-custom-background-90/30">
+                    {Object.entries(row).filter(([k]) => !["id", "date_maj"].includes(k)).slice(0, 7).map(([k, v]) => (
+                      <td key={k} className="px-4 py-2 text-custom-text-200">
+                        {typeof v === "boolean" ? (v ? "Oui" : "Non") :
+                         typeof v === "number" ? (v % 1 === 0 ? v : v.toFixed(2)) :
+                         Array.isArray(v) ? v.join(", ") :
+                         v == null ? "—" : String(v).slice(0, 40)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {data.length > 100 && (
+            <div className="p-3 text-center text-xs text-custom-text-400">
+              Affichage limite a 100 lignes sur {data.length}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

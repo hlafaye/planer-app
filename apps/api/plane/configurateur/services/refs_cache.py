@@ -39,7 +39,7 @@ class RefsCache:
             StructureOffreType, CategorieEquipement, EquipementType,
         )
         self._mercuriale = list(Mercuriale.objects.all())
-        self._postes = {p.nom.upper(): p for p in PosteType.objects.all()}
+        self._postes = {p.nom.upper(): p for p in PosteType.objects.filter(actif=True)}
         self._matrice = list(MatriceStaffing.objects.select_related("poste").all())
         self._grammages = list(Grammage.objects.all())
         self._structures = list(StructureOffreType.objects.all())
