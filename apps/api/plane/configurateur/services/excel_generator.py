@@ -19,6 +19,16 @@ from .excel_mapping import (
 from .simulation_engine import SimulationEngine
 from .activity_calculator import D
 
+
+def safe_write_cell(ws, row, col, value):
+    """Write to a cell, skipping merged cells gracefully."""
+    try:
+        cell = ws.cell(row=row, column=col)
+        cell.value = value
+    except AttributeError:
+        # MergedCell — skip silently
+        pass
+
 logger = logging.getLogger("plane.configurateur.excel")
 
 TEMPLATES_DIR = "/code/plane/templates_excel"
@@ -226,10 +236,10 @@ class BPUGenerator(BaseGenerator):
             for i, t in enumerate(tranches):
                 row = 4 + i  # starting row for tranches
                 if row <= ws.max_row:
-                    ws.cell(row=row, column=1, value="Tranche {}".format(t.numero))
-                    ws.cell(row=row, column=2, value=t.borne_min)
-                    ws.cell(row=row, column=3, value=t.borne_max)
-                    ws.cell(row=row, column=4, value=t.mediane)
+                    safe_write_cell(ws, row, 1, "Tranche {}".format(t.numero))
+                    safe_write_cell(ws, row, 2, t.borne_min)
+                    safe_write_cell(ws, row, 3, t.borne_max)
+                    safe_write_cell(ws, row, 4, t.mediane)
 
         # 2. Supprimer onglets non pertinents (garder que PdV du projet)
         pdv_types = set(p.type_pdv for p in self.projet.points_de_vente.all())
@@ -310,7 +320,10 @@ class CoutFixeGenerator(BaseGenerator):
             if sname in wb.sheetnames:
                 ws = wb[sname]
                 ws["A3"] = title if sname == "ACTIVITES" else title
-                ws.cell(row=3, column=1).font = title_font
+                try:
+                    ws.cell(row=3, column=1).font = title_font
+                except AttributeError:
+                    pass
 
     def _fill_personnel_x(self, wb, sim):
         """Fill 'Frais de personnel_X' with postes from DB."""
@@ -333,9 +346,9 @@ class CoutFixeGenerator(BaseGenerator):
                 continue
 
             # Col A = label
-            ws.cell(row=row, column=1, value=poste.label_excel or poste.nom)
+            safe_write_cell(ws, row, 1, poste.label_excel or poste.nom)
             # Col C = salaire de base
-            ws.cell(row=row, column=3, value=float(poste.salaire_brut_mensuel))
+            safe_write_cell(ws, row, 3, float(poste.salaire_brut_mensuel))
 
             # Fill nb ETP by tranche from MatriceStaffing
             pdv_types = [p.type_pdv for p in self.projet.points_de_vente.all()]
@@ -349,7 +362,7 @@ class CoutFixeGenerator(BaseGenerator):
                 if total_etp > 0:
                     from openpyxl.utils import column_index_from_string
                     col_idx = column_index_from_string(col_letter)
-                    ws.cell(row=row, column=col_idx, value=float(total_etp))
+                    safe_write_cell(ws, row, col_idx, float(total_etp))
 
         # Write taux de charges (row 59)
         for tc in TauxChargesSociales.objects.all():
@@ -357,7 +370,7 @@ class CoutFixeGenerator(BaseGenerator):
                 if t_num == tc.tranche:
                     from openpyxl.utils import column_index_from_string
                     col_idx = column_index_from_string(col_letter)
-                    ws.cell(row=59, column=col_idx, value=float(tc.taux))
+                    safe_write_cell(ws, 59, col_idx, float(tc.taux))
 
     def _fill_fg_x(self, wb, sim):
         """Fill 'Frais Généraux_X' with FG types from DB."""
@@ -398,13 +411,13 @@ class CoutFixeGenerator(BaseGenerator):
                 montant = float(override)
 
             if montant > 0:
-                ws.cell(row=row, column=7, value=montant)
+                safe_write_cell(ws, row, 7, montant)
 
             # Also fill baremes for other tranches
             for bareme in FraisGenerauxBareme.objects.filter(fg_type=fg):
                 t_col = 7 + bareme.tranche  # col H=T2, I=T3, J=T4, K=T5
                 ov = overrides.get((fg.id, bareme.tranche))
-                ws.cell(row=row, column=t_col, value=float(ov or bareme.montant))
+                safe_write_cell(ws, row, t_col, float(ov or bareme.montant))
 
     def _fill_invest_x(self, wb, sim):
         """Fill 'Invest, valorisation_X' with invest types from DB."""
@@ -423,13 +436,13 @@ class CoutFixeGenerator(BaseGenerator):
             if row < 7 or row > 60:
                 continue
             # Col B = label
-            ws.cell(row=row, column=2, value=inv.libelle)
+            safe_write_cell(ws, row, 2, inv.libelle)
             # Col E = quantite
-            ws.cell(row=row, column=5, value=inv.quantite_defaut)
+            safe_write_cell(ws, row, 5, inv.quantite_defaut)
             # Col G = montant tranche 1
             montant = float(inv.montant_unitaire * inv.quantite_defaut)
             if montant > 0:
-                ws.cell(row=row, column=7, value=montant)
+                safe_write_cell(ws, row, 7, montant)
 
     def _fill_ce_flash_x(self, wb, sim):
         """Fill 'CE Flash_X' with KPIs from SimulationEngine."""
