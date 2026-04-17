@@ -57,6 +57,14 @@ class PosteType(models.Model):
     ]
     categorie = models.CharField(max_length=50, choices=CATEGORIES, default="cuisine")
 
+    # Sprint 2.5 : enrichissement pour mapping Excel exact
+    heures_mois = models.IntegerField(default=152)  # 152h temps plein, 104h mi-temps
+    label_excel = models.CharField(max_length=255, blank=True, default="")
+    section_excel = models.CharField(max_length=100, blank=True, default="")
+    ordre_excel = models.IntegerField(default=0)
+    est_mi_temps = models.BooleanField(default=False)
+    actif = models.BooleanField(default=True)
+
     class Meta:
         db_table = "ao_postes_types"
 
@@ -138,6 +146,13 @@ class ProjetAO(BaseModel):
     date_remise = models.DateField(null=True, blank=True)
     date_ouverture_visee = models.DateField(null=True, blank=True)
 
+    # Sprint 2.5 : parametres projet supplementaires
+    duree_contrat_annees = models.IntegerField(default=5)
+    pct_frais_siege = models.DecimalField(max_digits=4, decimal_places=2, default=6.5)
+    pct_produits_achats = models.DecimalField(max_digits=4, decimal_places=2, default=25)
+    remise_commerciale_pct = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    semaines_par_an = models.IntegerField(default=45)
+
     NATURES = [
         ("ouverture", "Ouverture"),
         ("reprise", "Reprise"),
@@ -208,6 +223,12 @@ class PointDeVente(BaseModel):
     couverts_jour_cible = models.IntegerField(default=0)
     jours_ouvres_mois = models.IntegerField(default=20)
 
+    # Sprint 2.5
+    nb_tranches = models.IntegerField(default=5)
+    jours_basse_frequentation = models.IntegerField(default=0)
+    horaires_ouverture = models.CharField(max_length=100, blank=True, default="")
+    taux_tva = models.DecimalField(max_digits=4, decimal_places=2, default=10.0)
+
     class Meta:
         db_table = "ao_points_de_vente"
 
@@ -247,3 +268,195 @@ class CalculSnapshot(BaseModel):
     class Meta:
         db_table = "ao_calcul_snapshots"
         ordering = ["-created_at"]
+
+
+# ============ SPRINT 2.5 : REFERENTIELS NIVEAU 1 (catalogue EMPREINTES) ============
+
+
+class TrancheFrequentation(models.Model):
+    """Bornes standards des tranches de frequentation (0 a 10)."""
+    numero = models.IntegerField(unique=True)
+    borne_min = models.IntegerField(default=0)
+    borne_max = models.IntegerField(default=0)
+    mediane = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "ao_tranches_frequentation"
+        ordering = ["numero"]
+
+    def __str__(self):
+        return "T{} ({}-{})".format(self.numero, self.borne_min, self.borne_max)
+
+
+class ProduitAlimentaire(models.Model):
+    """Catalogue des produits alimentaires EMPREINTES (BPU)."""
+    designation = models.CharField(max_length=255)
+    famille = models.CharField(max_length=100, blank=True, default="")
+    gamme = models.CharField(max_length=50, blank=True, default="")  # Frais, ambiant, surgele...
+    categorie = models.CharField(max_length=80, blank=True, default="")
+    grammage_net_min = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    grammage_net_max = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    perte_pct = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    prix_ht_reference = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    types_pdv = models.JSONField(default=list, blank=True)
+    actif = models.BooleanField(default=True)
+    date_maj = models.DateField(auto_now=True)
+
+    class Meta:
+        db_table = "ao_produits_alimentaires"
+        ordering = ["famille", "designation"]
+
+    def __str__(self):
+        return self.designation
+
+
+class GradationPrix(models.Model):
+    """Fourchettes de prix par gamme par categorie."""
+    categorie_produit = models.CharField(max_length=100)
+    gamme_numero = models.IntegerField()
+    prix_ttc_min = models.DecimalField(max_digits=6, decimal_places=2)
+    prix_ttc_max = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        db_table = "ao_gradation_prix"
+        unique_together = [("categorie_produit", "gamme_numero")]
+
+
+class FraisGenerauxType(models.Model):
+    """Les ~50 postes de frais generaux standards EMPREINTES."""
+    code = models.CharField(max_length=50, unique=True)
+    libelle = models.CharField(max_length=255)
+    section = models.CharField(max_length=100)
+    MODE_CALCUL = [
+        ("forfait", "Forfait fixe mensuel"),
+        ("ratio_couvert", "Ratio au couvert"),
+        ("ratio_effectif", "Ratio a l'effectif"),
+        ("pct_ca", "% du CA"),
+    ]
+    mode_calcul = models.CharField(max_length=20, choices=MODE_CALCUL, default="forfait")
+    montant_reference = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    varie_par_tranche = models.BooleanField(default=False)
+    ordre = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "ao_frais_generaux_types"
+        ordering = ["ordre"]
+
+    def __str__(self):
+        return "{} ({})".format(self.libelle, self.section)
+
+
+class FraisGenerauxBareme(models.Model):
+    """Montant de reference par type de FG par tranche."""
+    fg_type = models.ForeignKey(FraisGenerauxType, related_name="baremes", on_delete=models.CASCADE)
+    tranche = models.IntegerField()
+    montant = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        db_table = "ao_frais_generaux_baremes"
+        unique_together = [("fg_type", "tranche")]
+
+
+class InvestissementType(models.Model):
+    """Types d'investissements avec parametrage par defaut."""
+    code = models.CharField(max_length=50, unique=True)
+    libelle = models.CharField(max_length=255)
+    section = models.CharField(max_length=100)
+    montant_unitaire = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    quantite_defaut = models.IntegerField(default=1)
+    FINANCEUR = [
+        ("prestataire_repercute", "Prestataire repercute"),
+        ("prestataire_non_repercute", "Prestataire non repercute"),
+        ("client", "Client"),
+    ]
+    financeur = models.CharField(max_length=30, choices=FINANCEUR, default="prestataire_repercute")
+    duree_amortissement = models.IntegerField(default=5)
+    pct_frais_financiers = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    varie_par_tranche = models.BooleanField(default=False)
+    ordre = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "ao_investissements_types"
+        ordering = ["ordre"]
+
+    def __str__(self):
+        return "{} ({})".format(self.libelle, self.section)
+
+
+class InvestissementBareme(models.Model):
+    """Montant d'investissement par tranche."""
+    invest_type = models.ForeignKey(InvestissementType, related_name="baremes", on_delete=models.CASCADE)
+    tranche = models.IntegerField()
+    montant = models.DecimalField(max_digits=10, decimal_places=2)
+    quantite = models.IntegerField(default=1)
+
+    class Meta:
+        db_table = "ao_investissements_baremes"
+        unique_together = [("invest_type", "tranche")]
+
+
+class TauxChargesSociales(models.Model):
+    """Taux de charges sociales par tranche."""
+    tranche = models.IntegerField(unique=True)
+    taux = models.DecimalField(max_digits=5, decimal_places=4)
+
+    class Meta:
+        db_table = "ao_taux_charges_sociales"
+
+    def __str__(self):
+        return "T{}: {}".format(self.tranche, self.taux)
+
+
+# ============ SPRINT 2.5 : NIVEAU 2 — PARAMETRES PAR PROJET AO ============
+
+
+class ProgrammeOuverture(models.Model):
+    """Programme d'ouverture par PdV par tranche pour un projet AO."""
+    projet_ao = models.ForeignKey(ProjetAO, related_name="programmes_ouverture", on_delete=models.CASCADE)
+    point_de_vente = models.ForeignKey(PointDeVente, related_name="programmes", on_delete=models.CASCADE)
+    tranche = models.IntegerField()
+    est_ouvert = models.BooleanField(default=True)
+    horaires = models.CharField(max_length=100, blank=True, default="")
+    mode_service = models.CharField(max_length=100, blank=True, default="")
+    nb_comptoirs_chauds_assiste = models.IntegerField(default=0)
+    nb_comptoirs_chauds_ls = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "ao_programmes_ouverture"
+        unique_together = [("projet_ao", "point_de_vente", "tranche")]
+
+
+class ProjetAOFG(models.Model):
+    """Surcharge des FG pour un projet AO specifique."""
+    projet_ao = models.ForeignKey(ProjetAO, related_name="fg_overrides", on_delete=models.CASCADE)
+    fg_type = models.ForeignKey(FraisGenerauxType, on_delete=models.CASCADE)
+    tranche = models.IntegerField()
+    montant = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        db_table = "ao_projet_fg"
+        unique_together = [("projet_ao", "fg_type", "tranche")]
+
+
+class ProjetAOInvest(models.Model):
+    """Surcharge des investissements pour un projet AO specifique."""
+    projet_ao = models.ForeignKey(ProjetAO, related_name="invest_overrides", on_delete=models.CASCADE)
+    invest_type = models.ForeignKey(InvestissementType, on_delete=models.CASCADE)
+    tranche = models.IntegerField()
+    montant = models.DecimalField(max_digits=10, decimal_places=2)
+    quantite = models.IntegerField(default=1)
+
+    class Meta:
+        db_table = "ao_projet_invest"
+        unique_together = [("projet_ao", "invest_type", "tranche")]
+
+
+class ProjetAOPrix(models.Model):
+    """Prix HT par produit pour un projet AO."""
+    projet_ao = models.ForeignKey(ProjetAO, related_name="prix_overrides", on_delete=models.CASCADE)
+    produit = models.ForeignKey(ProduitAlimentaire, on_delete=models.CASCADE)
+    prix_ht = models.DecimalField(max_digits=8, decimal_places=2)
+
+    class Meta:
+        db_table = "ao_projet_prix"
+        unique_together = [("projet_ao", "produit")]
