@@ -3,6 +3,8 @@
 
 import { useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
+import { AppSidebarToggleButton } from "@/components/sidebar/sidebar-toggle-button";
+import { useAppTheme } from "@/hooks/store/use-app-theme";
 
 type ProjetAO = {
   id: string;
@@ -29,6 +31,7 @@ const STATUT_COLORS: Record<string, string> = {
 
 export default function ConfigurateurAOPage() {
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
+  const { sidebarCollapsed } = useAppTheme();
   const [projets, setProjets] = useState<ProjetAO[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,7 @@ export default function ConfigurateurAOPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto p-6">
+        {sidebarCollapsed && <div className="mb-3"><AppSidebarToggleButton /></div>}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-lg font-bold text-custom-text-100">🎯 Configurateur AO</h1>

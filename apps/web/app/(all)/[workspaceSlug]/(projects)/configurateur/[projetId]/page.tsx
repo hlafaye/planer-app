@@ -6,6 +6,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@plane/propel/button";
 import { IconButton } from "@plane/propel/icon-button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import { AppSidebarToggleButton } from "@/components/sidebar/sidebar-toggle-button";
+import { useAppTheme } from "@/hooks/store/use-app-theme";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -105,6 +107,7 @@ const toast = {
 
 export default function ProjetAODetailPage() {
   const { workspaceSlug, projetId } = useParams<{ workspaceSlug: string; projetId: string }>();
+  const { sidebarCollapsed } = useAppTheme();
   const [projet, setProjet] = useState<ProjetAO | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("general");
@@ -174,6 +177,13 @@ export default function ProjetAODetailPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-5xl mx-auto px-6 py-5">
+        {/* Sidebar toggle when collapsed */}
+        {sidebarCollapsed && (
+          <div className="mb-3">
+            <AppSidebarToggleButton />
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-start justify-between pb-4 mb-2 border-b border-border-subtle">
           <div>
@@ -581,7 +591,7 @@ function TabConfig({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: str
   );
 }
 
-// ─── Tab: Referentiels ───────────────────────────────────────────────────────
+// ─── Tab: Referentiels (Spreadsheet mode) ────────────────────────────────────
 
 type RefColumn = { key: string; label: string; type: "text" | "number" | "select"; editable: boolean; options?: { value: string; label: string }[] };
 type RefConfig = { key: string; label: string; endpoint: string; columns: RefColumn[]; defaultNew: Record<string, any> };
@@ -661,11 +671,12 @@ const REF_CONFIGS: RefConfig[] = [
 function TabReferentiels({ projet, apiBase }: { projet: ProjetAO; apiBase: string }) {
   const [subTab, setSubTab] = useState("postes");
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [data, setData] = useState<any[]>([]);
+  const [localData, setLocalData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editCell, setEditCell] = useState<{ id: number; key: string } | null>(null);
-  const [editVal, setEditVal] = useState<any>(null);
-  const [adding, setAdding] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const serverDataRef = useRef<any[]>([]);
 
   const config = REF_CONFIGS.find((c) => c.key === subTab)!;
 
@@ -674,10 +685,7 @@ function TabReferentiels({ projet, apiBase }: { projet: ProjetAO; apiBase: strin
     REF_CONFIGS.forEach((cfg) => {
       fetch(`${apiBase}/${cfg.endpoint}`, { credentials: "include" })
         .then((r) => r.json())
-        .then((d) => {
-          const arr = Array.isArray(d) ? d : d.results || [];
-          setCounts((prev) => ({ ...prev, [cfg.key]: arr.length }));
-        })
+        .then((d) => { const arr = Array.isArray(d) ? d : d.results || []; setCounts((prev) => ({ ...prev, [cfg.key]: arr.length })); })
         .catch(() => {});
     });
   }, [apiBase]);
@@ -689,7 +697,8 @@ function TabReferentiels({ projet, apiBase }: { projet: ProjetAO; apiBase: strin
       .then((r) => r.json())
       .then((d) => {
         const arr = Array.isArray(d) ? d : d.results || [];
-        setData(arr);
+        setLocalData(arr);
+        serverDataRef.current = arr;
         setCounts((prev) => ({ ...prev, [subTab]: arr.length }));
         setLoading(false);
       })
@@ -698,128 +707,170 @@ function TabReferentiels({ projet, apiBase }: { projet: ProjetAO; apiBase: strin
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // PATCH a single field
-  const patchItem = async (id: number, field: string, value: any) => {
-    const resp = await fetch(`${apiBase}/${config.endpoint}${id}/`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ [field]: value }),
-    });
-    if (resp.ok) { fetchData(); toast.ok("Modifie"); }
-    else toast.err("Erreur sauvegarde");
-    setEditCell(null);
-  };
+  // Auto-save with debounce
+  const scheduleSave = useCallback((itemId: number, field: string, value: any) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      const resp = await fetch(`${apiBase}/${config.endpoint}${itemId}/`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (resp.ok) {
+        setSaveStatus("saved");
+        // Silent refresh of server data
+        const r2 = await fetch(`${apiBase}/${config.endpoint}`, { credentials: "include" });
+        if (r2.ok) { const d = await r2.json(); serverDataRef.current = Array.isArray(d) ? d : d.results || []; }
+      } else {
+        setSaveStatus("idle");
+      }
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    }, 800);
+  }, [apiBase, config.endpoint]);
 
-  // POST a new item
+  // Local change
+  const handleChange = useCallback((itemId: number, field: string, value: any) => {
+    setLocalData((prev) => prev.map((item) => item.id === itemId ? { ...item, [field]: value } : item));
+    scheduleSave(itemId, field, value);
+  }, [scheduleSave]);
+
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIdx: number, colIdx: number) => {
+    const editableCols = config.columns.filter((c) => c.editable);
+    if (e.key === "Tab") {
+      e.preventDefault();
+      let nextCol = e.shiftKey ? colIdx - 1 : colIdx + 1;
+      let nextRow = rowIdx;
+      if (nextCol >= editableCols.length) { nextCol = 0; nextRow = Math.min(rowIdx + 1, localData.length - 1); }
+      else if (nextCol < 0) { nextCol = editableCols.length - 1; nextRow = Math.max(rowIdx - 1, 0); }
+      const el = tableRef.current?.querySelector(`[data-row="${nextRow}"][data-col="${nextCol}"]`) as HTMLInputElement;
+      el?.focus(); el?.select();
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const el = tableRef.current?.querySelector(`[data-row="${Math.min(rowIdx + 1, localData.length - 1)}"][data-col="${colIdx}"]`) as HTMLInputElement;
+      el?.focus(); el?.select();
+    }
+    if (e.key === "Escape") {
+      const serverItem = serverDataRef.current.find((i: any) => i.id === localData[rowIdx]?.id);
+      if (serverItem) {
+        const field = editableCols[colIdx].key;
+        setLocalData((prev) => prev.map((item) => item.id === serverItem.id ? { ...item, [field]: serverItem[field] } : item));
+      }
+    }
+  }, [config.columns, localData]);
+
+  // Add
   const addItem = async () => {
-    setAdding(true);
     const resp = await fetch(`${apiBase}/${config.endpoint}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify(config.defaultNew),
     });
-    setAdding(false);
-    if (resp.ok) { fetchData(); toast.ok("Ajoute"); }
-    else toast.err("Erreur creation");
+    if (resp.ok) fetchData();
   };
 
-  // DELETE an item
+  // Delete
   const deleteItem = async (id: number) => {
-    if (!confirm("Supprimer cette ligne ?")) return;
-    const resp = await fetch(`${apiBase}/${config.endpoint}${id}/`, { method: "DELETE", credentials: "include" });
-    if (resp.ok) { fetchData(); toast.ok("Supprime"); }
-    else toast.err("Erreur suppression");
+    await fetch(`${apiBase}/${config.endpoint}${id}/`, { method: "DELETE", credentials: "include" });
+    fetchData();
   };
 
   return (
-    <div className="space-y-4">
-      {/* Sub-tabs with counts */}
+    <div className="space-y-3">
+      {/* Sub-tabs */}
       <div className="flex gap-1 border-b border-border-subtle overflow-x-auto">
         {REF_CONFIGS.map((cfg) => {
           const count = counts[cfg.key];
           return (
-            <button key={cfg.key} onClick={() => { setSubTab(cfg.key); setEditCell(null); }}
+            <button key={cfg.key} onClick={() => setSubTab(cfg.key)}
               className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 subTab === cfg.key ? "border-accent-primary text-primary" : "border-transparent text-tertiary hover:text-secondary"
               }`}
-            >
-              {cfg.label}{count != null && count > 0 ? ` (${count})` : ""}
-            </button>
+            >{cfg.label}{count != null && count > 0 ? ` (${count})` : ""}</button>
           );
         })}
       </div>
 
-      {/* Header + Add button */}
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-tertiary">Cliquez sur une valeur pour la modifier</div>
-        <Button variant="primary" size="sm" onClick={addItem} disabled={adding} loading={adding}>+ Ajouter</Button>
+      {/* Header */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-primary">{config.label}</span>
+          <span className="text-xs text-tertiary">{localData.length} elements</span>
+          <span className="text-xs text-placeholder">
+            {saveStatus === "saving" && "\u27F3 Enregistrement..."}
+            {saveStatus === "saved" && "\u2713 Sauvegarde"}
+          </span>
+        </div>
+        <button onClick={addItem} className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded text-accent-primary hover:bg-accent-primary/10 transition-colors">+ Ajouter</button>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg border border-border-subtle overflow-hidden">
+      {/* Spreadsheet table */}
+      <div className="border border-border-subtle rounded-lg overflow-auto max-h-[65vh]">
         {loading ? (
           <div className="p-8 text-center text-tertiary text-sm">Chargement...</div>
-        ) : data.length === 0 ? (
-          <div className="p-8 text-center text-tertiary text-sm">Aucun element. Cliquez "Ajouter" pour commencer.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-layer-1">
-                  {config.columns.map((col) => (
-                    <th key={col.key} className="text-left px-3 py-2 text-caption-xs font-semibold text-tertiary uppercase">{col.label}</th>
-                  ))}
-                  <th className="w-10 px-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((item) => (
-                  <tr key={item.id} className="border-t border-border-subtle hover:bg-layer-transparent-hover group">
+          <table ref={tableRef} className="w-full border-collapse">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-surface-2">
+                {config.columns.map((col) => (
+                  <th key={col.key} className="px-2 py-1.5 text-left text-[11px] font-medium text-tertiary uppercase tracking-wider border-b border-border-subtle">{col.label}</th>
+                ))}
+                <th className="px-2 py-1.5 w-8 border-b border-border-subtle"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {localData.map((item, rowIdx) => {
+                let editableIdx = 0;
+                return (
+                  <tr key={item.id} className="group border-t border-border-subtle/50">
                     {config.columns.map((col) => {
-                      const isEditing = editCell?.id === item.id && editCell?.key === col.key;
-                      const cellVal = item[col.key];
+                      const isEditable = col.editable;
+                      const curIdx = isEditable ? editableIdx++ : -1;
                       return (
-                        <td key={col.key} className="px-3 py-1.5">
-                          {isEditing ? (
+                        <td key={col.key} className="px-0 py-0">
+                          {isEditable ? (
                             col.type === "select" ? (
-                              <select autoFocus value={editVal} onChange={(e) => patchItem(item.id, col.key, e.target.value)}
-                                onBlur={() => setEditCell(null)}
-                                className="w-full h-7 px-2 rounded border border-accent-primary bg-layer-2 text-primary text-sm focus:outline-none"
+                              <select
+                                data-row={rowIdx} data-col={curIdx}
+                                value={item[col.key] ?? ""}
+                                onChange={(e) => handleChange(item.id, col.key, e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, rowIdx, curIdx)}
+                                className="w-full px-2 py-1.5 text-sm bg-transparent text-primary border-0 outline-none focus:bg-layer-1-hover transition-colors duration-75"
                               >
                                 {col.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                               </select>
                             ) : (
-                              <input autoFocus type={col.type === "number" ? "number" : "text"}
-                                step={col.type === "number" ? "0.01" : undefined}
-                                value={editVal ?? ""} onChange={(e) => setEditVal(col.type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)}
-                                onBlur={() => patchItem(item.id, col.key, editVal)}
-                                onKeyDown={(e) => { if (e.key === "Enter") patchItem(item.id, col.key, editVal); if (e.key === "Escape") setEditCell(null); }}
-                                className="w-full h-7 px-2 rounded border border-accent-primary bg-layer-2 text-primary text-sm focus:outline-none"
+                              <input
+                                data-row={rowIdx} data-col={curIdx}
+                                type={col.type === "number" ? "number" : "text"}
+                                step={col.type === "number" ? "any" : undefined}
+                                value={item[col.key] ?? ""}
+                                onChange={(e) => handleChange(item.id, col.key, col.type === "number" ? (e.target.value === "" ? null : parseFloat(e.target.value)) : e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e, rowIdx, curIdx)}
+                                onFocus={(e) => e.target.select()}
+                                className="w-full px-2 py-1.5 text-sm bg-transparent text-primary border-0 outline-none focus:bg-layer-1-hover transition-colors duration-75 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             )
                           ) : (
-                            <span
-                              className={col.editable ? "cursor-pointer hover:bg-layer-1-hover px-2 py-1 -mx-1 rounded transition-colors text-primary" : "text-secondary"}
-                              onClick={() => { if (col.editable) { setEditCell({ id: item.id, key: col.key }); setEditVal(cellVal); } }}
-                            >
-                              {col.type === "select" && col.options
-                                ? col.options.find((o) => o.value === cellVal)?.label || cellVal
-                                : typeof cellVal === "number" ? (cellVal % 1 === 0 ? cellVal : cellVal.toFixed(2)) : cellVal ?? "\u2014"}
-                            </span>
+                            <span className="block px-2 py-1.5 text-sm text-secondary">{item[col.key] ?? "\u2014"}</span>
                           )}
                         </td>
                       );
                     })}
-                    <td className="px-2 py-1.5">
-                      <button onClick={() => deleteItem(item.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-danger-subtle text-tertiary hover:text-danger-secondary transition-all" title="Supprimer">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
+                    <td className="px-1 py-0">
+                      <button onClick={() => deleteItem(item.id)} className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-1 rounded text-placeholder hover:text-danger-secondary transition-opacity" tabIndex={-1}>&times;</button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        {!loading && localData.length === 0 && (
+          <div className="py-12 text-center text-placeholder text-sm">Aucun element. Cliquez "+ Ajouter".</div>
         )}
       </div>
+      <div className="text-[10px] text-placeholder px-1">Tab = cellule suivante &middot; Enter = ligne suivante &middot; Esc = annuler</div>
     </div>
   );
 }
