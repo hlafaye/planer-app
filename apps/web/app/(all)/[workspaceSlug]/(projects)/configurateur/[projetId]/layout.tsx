@@ -147,7 +147,22 @@ function ConfigurateurAOLayout() {
 
   return (
     <ProjetAOContext.Provider value={{ projet, apiBase, mutate: fetchProjet }}>
-      <div className="h-full flex">
+      {/* Override brand color → terracotta EMPREINTES */}
+      <style>{`
+        .empreintes-ao {
+          --color-brand-50: oklch(0.96 0.025 30);
+          --color-brand-100: oklch(0.91 0.055 29);
+          --color-brand-200: oklch(0.83 0.095 28);
+          --color-brand-300: oklch(0.74 0.125 27);
+          --color-brand-400: oklch(0.65 0.14 25);
+          --color-brand-500: oklch(0.57 0.14 25);
+          --color-brand-600: oklch(0.49 0.12 24);
+          --color-brand-700: oklch(0.41 0.10 24);
+          --color-brand-800: oklch(0.34 0.08 24);
+          --color-brand-900: oklch(0.27 0.06 24);
+        }
+      `}</style>
+      <div className="empreintes-ao h-full flex">
         {/* ── Sidebar interne ── */}
         <aside className="w-52 flex-shrink-0 border-r border-border-subtle bg-layer-1 flex flex-col">
           <div className="p-3 border-b border-border-subtle">

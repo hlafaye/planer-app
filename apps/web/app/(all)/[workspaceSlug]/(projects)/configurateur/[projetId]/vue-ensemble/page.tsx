@@ -47,9 +47,9 @@ export default function VueEnsemblePage() {
           { label: "Semaines / an", value: form.semaines_par_an },
           { label: "Duree contrat", value: `${form.duree_contrat_annees} ans` },
         ].map((kpi) => (
-          <div key={kpi.label} className="p-3 rounded-lg bg-layer-1 border border-border-subtle">
-            <div className="text-[10px] text-tertiary uppercase tracking-wider">{kpi.label}</div>
-            <div className="text-lg font-bold text-primary mt-1 truncate">{kpi.value}</div>
+          <div key={kpi.label} className="p-4 rounded-xl bg-layer-2 border border-border-subtle">
+            <div className="text-[10px] uppercase tracking-widest text-tertiary font-semibold">{kpi.label}</div>
+            <div className="text-2xl font-bold text-primary mt-2 truncate">{kpi.value}</div>
           </div>
         ))}
       </div>
@@ -57,7 +57,8 @@ export default function VueEnsemblePage() {
       <div className="grid grid-cols-2 gap-5">
         {/* Left: Infos generales */}
         <div className="rounded-lg border border-border-subtle bg-surface-1 overflow-hidden">
-          <div className="px-5 py-3 border-b border-border-subtle bg-layer-1">
+          <div className="px-5 py-3 border-b border-border-subtle bg-layer-1 flex items-center gap-2.5">
+            <div className="w-1 h-4 rounded-full bg-[#BF5D48]" />
             <h2 className="text-sm font-semibold text-primary">Informations generales</h2>
           </div>
           <div className="p-5 space-y-3">
@@ -78,7 +79,8 @@ export default function VueEnsemblePage() {
 
         {/* Right: Parametres financiers */}
         <div className="rounded-lg border border-border-subtle bg-surface-1 overflow-hidden">
-          <div className="px-5 py-3 border-b border-border-subtle bg-layer-1">
+          <div className="px-5 py-3 border-b border-border-subtle bg-layer-1 flex items-center gap-2.5">
+            <div className="w-1 h-4 rounded-full bg-[#BF5D48]" />
             <h2 className="text-sm font-semibold text-primary">Parametres financiers</h2>
           </div>
           <div className="p-5 space-y-3">

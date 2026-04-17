@@ -49,13 +49,13 @@ export default function ConfigurationPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {MODES.map((m) => (
             <button key={m.id} onClick={() => setMode(m.id)}
-              className={`p-4 rounded-lg border-2 text-left transition-all relative ${mode === m.id ? "border-accent-primary bg-accent-primary/5 shadow-sm" : "border-border-subtle bg-layer-1 hover:border-border-strong"}`}
+              className={`p-5 rounded-xl border-2 text-left transition-all relative ${mode === m.id ? "border-[#BF5D48] bg-[#BF5D48]/5 shadow-sm" : "border-border-subtle bg-layer-2 hover:border-border-strong"}`}
             >
-              {mode === m.id && <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-accent-primary text-on-color flex items-center justify-center text-xs font-bold">&check;</div>}
-              <div className="text-xl mb-2">{m.icon}</div>
+              {mode === m.id && <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#BF5D48] text-on-color flex items-center justify-center text-xs font-bold">{"\u2713"}</div>}
+              <div className="text-3xl mb-3">{m.icon}</div>
               <div className="text-sm font-semibold text-primary mb-1">{m.name}</div>
               <div className="text-xs text-tertiary leading-relaxed mb-2">{m.desc}</div>
-              <div className="text-[10px] pt-2 border-t border-border-subtle"><span className="text-accent-primary font-medium">Ideal : </span><span className="text-tertiary">{m.tip}</span></div>
+              <div className="text-[10px] pt-2 border-t border-border-subtle"><span className="text-[#BF5D48] font-medium">Ideal : </span><span className="text-tertiary">{m.tip}</span></div>
             </button>
           ))}
         </div>
@@ -65,7 +65,7 @@ export default function ConfigurationPage() {
       <Section title="Horaires de service">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {Object.entries(HORAIRES).map(([key, label]) => (
-            <button key={key} onClick={() => setHoraires(key)} className={`p-3 rounded-lg border-2 text-center text-sm font-medium transition-all ${horaires === key ? "border-accent-primary bg-accent-primary/5 text-accent-primary" : "border-border-subtle bg-layer-1 text-secondary hover:border-border-strong"}`}>{label}</button>
+            <button key={key} onClick={() => setHoraires(key)} className={`p-3 rounded-xl border-2 text-center text-sm font-medium transition-all ${horaires === key ? "border-[#BF5D48] bg-[#BF5D48]/5 text-[#BF5D48]" : "border-border-subtle bg-layer-2 text-secondary hover:border-border-strong"}`}>{label}</button>
           ))}
         </div>
       </Section>
@@ -96,8 +96,8 @@ export default function ConfigurationPage() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border-subtle bg-surface-1 overflow-hidden">
-      <div className="px-5 py-3 border-b border-border-subtle bg-layer-1"><h2 className="text-sm font-semibold text-primary">{title}</h2></div>
+    <div className="rounded-xl border border-border-subtle bg-surface-1 overflow-hidden">
+      <div className="px-5 py-3 border-b border-border-subtle bg-layer-1 flex items-center gap-2.5"><div className="w-1 h-4 rounded-full bg-[#BF5D48]" /><h2 className="text-sm font-semibold text-primary">{title}</h2></div>
       <div className="p-5">{children}</div>
     </div>
   );

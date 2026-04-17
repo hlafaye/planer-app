@@ -24,6 +24,20 @@ export default function PointsDeVentePage() {
       .catch(() => {});
   }, [apiBase]);
 
+  // Fix 4: Auto-fill CVT/J=0 with tranche mediane on load
+  useEffect(() => {
+    if (tranches.length === 0) return;
+    projet.points_de_vente.forEach((pdv) => {
+      if (pdv.couverts_jour_cible === 0 || pdv.couverts_jour_cible == null) {
+        const tr = tranches.find((t) => t.numero === pdv.tranche_frequentation);
+        if (tr && tr.mediane > 0) {
+          updatePdv(pdv.id, { couverts_jour_cible: tr.mediane });
+        }
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tranches]);
+
   const updatePdv = async (id: string, data: any) => {
     const r = await fetch(`${apiBase}/projets/${projet.id}/pdv/${id}/`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
@@ -76,9 +90,9 @@ export default function PointsDeVentePage() {
       {/* PdV cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {projet.points_de_vente.map((pdv) => (
-          <div key={pdv.id} className="rounded-lg border border-border-subtle bg-layer-1 p-4 hover:border-border-strong transition-colors group">
+          <div key={pdv.id} className="rounded-xl border border-border-subtle bg-layer-2 p-4 hover:border-[#BF5D48]/40 hover:shadow-md transition-all group">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-accent-primary/10">{PDV_ICONS[pdv.type_pdv] || "\uD83C\uDF7D\uFE0F"}</div>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-[#BF5D48]/10">{PDV_ICONS[pdv.type_pdv] || "\uD83C\uDF7D\uFE0F"}</div>
               <div className="flex-1 min-w-0">
                 <input value={pdv.nom} onChange={(e) => updatePdv(pdv.id, { nom: e.target.value })} className="text-sm font-semibold text-primary bg-transparent border-0 outline-none w-full focus:bg-layer-1-hover rounded px-1 -mx-1" />
                 <div className="text-xs text-tertiary">{PDV_LABELS[pdv.type_pdv]}</div>
@@ -107,7 +121,7 @@ export default function PointsDeVentePage() {
               </div>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${pdv.tranche_frequentation <= 3 ? "bg-success-primary/10 text-success-secondary" : pdv.tranche_frequentation <= 6 ? "bg-accent-primary/10 text-accent-primary" : "bg-warning-primary/10 text-warning-secondary"}`}>T{pdv.tranche_frequentation}</span>
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${pdv.tranche_frequentation <= 3 ? "bg-[#929F88]/15 text-[#929F88]" : pdv.tranche_frequentation <= 6 ? "bg-[#BF5D48]/15 text-[#BF5D48]" : "bg-[#385835]/15 text-[#385835]"}`}>T{pdv.tranche_frequentation}</span>
               <span className="text-xs text-tertiary">{pdv.couverts_jour_cible} cvt/j &middot; {pdv.jours_ouvres_mois} j/m</span>
             </div>
           </div>
