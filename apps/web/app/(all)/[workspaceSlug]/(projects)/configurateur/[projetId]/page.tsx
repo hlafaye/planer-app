@@ -604,66 +604,236 @@ function TabConfig({ projet, apiBase, onSave }: { projet: ProjetAO; apiBase: str
 
 // ─── Tab: Referentiels ───────────────────────────────────────────────────────
 
+type RefColumn = { key: string; label: string; type: "text" | "number" | "select"; editable: boolean; options?: { value: string; label: string }[] };
+type RefConfig = { key: string; label: string; endpoint: string; columns: RefColumn[]; defaultNew: Record<string, any> };
+
+const REF_CONFIGS: RefConfig[] = [
+  {
+    key: "postes", label: "Postes", endpoint: "referentiels/postes/",
+    columns: [
+      { key: "nom", label: "Nom", type: "text", editable: true },
+      { key: "qualification", label: "Qualification", type: "text", editable: true },
+      { key: "salaire_brut_mensuel", label: "Salaire brut", type: "number", editable: true },
+      { key: "taux_charges", label: "Taux charges", type: "number", editable: true },
+      { key: "categorie", label: "Categorie", type: "select", editable: true, options: [
+        { value: "cuisine", label: "Cuisine" }, { value: "salle", label: "Salle" },
+        { value: "encadrement", label: "Encadrement" }, { value: "support", label: "Support" },
+      ]},
+      { key: "heures_mois", label: "H/mois", type: "number", editable: true },
+    ],
+    defaultNew: { nom: "Nouveau poste", qualification: "", salaire_brut_mensuel: 2000, taux_charges: 45, categorie: "cuisine", heures_mois: 152 },
+  },
+  {
+    key: "fg", label: "Frais Generaux", endpoint: "referentiels/frais-generaux/",
+    columns: [
+      { key: "code", label: "Code", type: "text", editable: true },
+      { key: "libelle", label: "Libelle", type: "text", editable: true },
+      { key: "section", label: "Section", type: "text", editable: true },
+      { key: "mode_calcul", label: "Mode", type: "select", editable: true, options: [
+        { value: "forfait", label: "Forfait" }, { value: "ratio_couvert", label: "Ratio/cvt" },
+        { value: "ratio_effectif", label: "Ratio/eff" }, { value: "pct_ca", label: "% CA" },
+      ]},
+      { key: "montant_reference", label: "Montant ref.", type: "number", editable: true },
+    ],
+    defaultNew: { code: "nouveau_fg", libelle: "Nouveau FG", section: "AUTRES", mode_calcul: "forfait", montant_reference: 0, ordre: 99 },
+  },
+  {
+    key: "invest", label: "Investissements", endpoint: "referentiels/investissements/",
+    columns: [
+      { key: "code", label: "Code", type: "text", editable: true },
+      { key: "libelle", label: "Libelle", type: "text", editable: true },
+      { key: "section", label: "Section", type: "text", editable: true },
+      { key: "montant_unitaire", label: "Montant unit.", type: "number", editable: true },
+      { key: "quantite_defaut", label: "Qte", type: "number", editable: true },
+      { key: "duree_amortissement", label: "Amort. (ans)", type: "number", editable: true },
+    ],
+    defaultNew: { code: "nouveau_inv", libelle: "Nouvel investissement", section: "AUTRES", montant_unitaire: 0, quantite_defaut: 1, duree_amortissement: 5 },
+  },
+  {
+    key: "taux", label: "Taux Charges", endpoint: "referentiels/taux-charges/",
+    columns: [
+      { key: "tranche", label: "Tranche", type: "number", editable: false },
+      { key: "taux", label: "Taux", type: "number", editable: true },
+    ],
+    defaultNew: { tranche: 0, taux: 0.65 },
+  },
+  {
+    key: "tranches", label: "Tranches", endpoint: "referentiels/tranches/",
+    columns: [
+      { key: "numero", label: "N\u00B0", type: "number", editable: false },
+      { key: "borne_min", label: "Min", type: "number", editable: true },
+      { key: "borne_max", label: "Max", type: "number", editable: true },
+      { key: "mediane", label: "Mediane", type: "number", editable: true },
+    ],
+    defaultNew: { numero: 11, borne_min: 0, borne_max: 0, mediane: 0 },
+  },
+  {
+    key: "produits", label: "Produits", endpoint: "referentiels/produits/",
+    columns: [
+      { key: "designation", label: "Designation", type: "text", editable: true },
+      { key: "famille", label: "Famille", type: "text", editable: true },
+      { key: "gamme", label: "Gamme", type: "text", editable: true },
+      { key: "prix_ht_reference", label: "Prix HT", type: "number", editable: true },
+    ],
+    defaultNew: { designation: "Nouveau produit", famille: "", gamme: "Frais", categorie: "", prix_ht_reference: null, types_pdv: ["self"], actif: true },
+  },
+];
+
 function TabReferentiels({ projet, apiBase }: { projet: ProjetAO; apiBase: string }) {
   const [subTab, setSubTab] = useState("postes");
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editCell, setEditCell] = useState<{ id: number; key: string } | null>(null);
+  const [editVal, setEditVal] = useState<any>(null);
+  const [adding, setAdding] = useState(false);
 
-  const SUBTABS = [
-    { key: "postes", label: "Postes", endpoint: "referentiels/postes/" },
-    { key: "fg", label: "Frais Generaux", endpoint: "referentiels/frais-generaux/" },
-    { key: "invest", label: "Investissements", endpoint: "referentiels/investissements/" },
-    { key: "taux", label: "Taux Charges", endpoint: "referentiels/taux-charges/" },
-    { key: "tranches", label: "Tranches", endpoint: "referentiels/tranches/" },
-    { key: "produits", label: "Produits", endpoint: "referentiels/produits/" },
-  ];
-  const currentSub = SUBTABS.find((s) => s.key === subTab)!;
+  const config = REF_CONFIGS.find((c) => c.key === subTab)!;
 
+  // Fetch counts for all tabs on mount
   useEffect(() => {
+    REF_CONFIGS.forEach((cfg) => {
+      fetch(`${apiBase}/${cfg.endpoint}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((d) => {
+          const arr = Array.isArray(d) ? d : d.results || [];
+          setCounts((prev) => ({ ...prev, [cfg.key]: arr.length }));
+        })
+        .catch(() => {});
+    });
+  }, [apiBase]);
+
+  // Fetch data for active tab
+  const fetchData = useCallback(() => {
     setLoading(true);
-    fetch(`${apiBase}/${currentSub.endpoint}`, { credentials: "include" })
+    fetch(`${apiBase}/${config.endpoint}`, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => { setData(Array.isArray(d) ? d : d.results || []); setLoading(false); })
+      .then((d) => {
+        const arr = Array.isArray(d) ? d : d.results || [];
+        setData(arr);
+        setCounts((prev) => ({ ...prev, [subTab]: arr.length }));
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
-  }, [subTab, apiBase, currentSub.endpoint]);
+  }, [apiBase, config.endpoint, subTab]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // PATCH a single field
+  const patchItem = async (id: number, field: string, value: any) => {
+    const resp = await fetch(`${apiBase}/${config.endpoint}${id}/`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ [field]: value }),
+    });
+    if (resp.ok) { fetchData(); toast.ok("Modifie"); }
+    else toast.err("Erreur sauvegarde");
+    setEditCell(null);
+  };
+
+  // POST a new item
+  const addItem = async () => {
+    setAdding(true);
+    const resp = await fetch(`${apiBase}/${config.endpoint}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify(config.defaultNew),
+    });
+    setAdding(false);
+    if (resp.ok) { fetchData(); toast.ok("Ajoute"); }
+    else toast.err("Erreur creation");
+  };
+
+  // DELETE an item
+  const deleteItem = async (id: number) => {
+    if (!confirm("Supprimer cette ligne ?")) return;
+    const resp = await fetch(`${apiBase}/${config.endpoint}${id}/`, { method: "DELETE", credentials: "include" });
+    if (resp.ok) { fetchData(); toast.ok("Supprime"); }
+    else toast.err("Erreur suppression");
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 border-b border-border-subtle">
-        {SUBTABS.map((st) => (
-          <button key={st.key} onClick={() => setSubTab(st.key)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-              subTab === st.key
-                ? "border-accent-primary text-primary"
-                : "border-transparent text-tertiary hover:text-secondary"
-            }`}
-          >{st.label} ({subTab === st.key ? data.length : ""})</button>
-        ))}
+      {/* Sub-tabs with counts */}
+      <div className="flex gap-1 border-b border-border-subtle overflow-x-auto">
+        {REF_CONFIGS.map((cfg) => {
+          const count = counts[cfg.key];
+          return (
+            <button key={cfg.key} onClick={() => { setSubTab(cfg.key); setEditCell(null); }}
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                subTab === cfg.key ? "border-accent-primary text-primary" : "border-transparent text-tertiary hover:text-secondary"
+              }`}
+            >
+              {cfg.label}{count != null && count > 0 ? ` (${count})` : ""}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="rounded-lg border border-border-subtle bg-surface-1 overflow-hidden">
+      {/* Header + Add button */}
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-tertiary">Cliquez sur une valeur pour la modifier</div>
+        <Button variant="primary" size="sm" onClick={addItem} disabled={adding} loading={adding}>+ Ajouter</Button>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-lg border border-border-subtle overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-tertiary text-sm">Chargement...</div>
         ) : data.length === 0 ? (
-          <div className="p-8 text-center text-tertiary text-sm">Aucune donnee. Lancez la commande d'import.</div>
+          <div className="p-8 text-center text-tertiary text-sm">Aucun element. Cliquez "Ajouter" pour commencer.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border-subtle bg-layer-1">
-                  {Object.keys(data[0]).filter((k) => !["id", "date_maj"].includes(k)).slice(0, 7).map((k) => (
-                    <th key={k} className="text-left px-4 py-2 text-caption-xs font-semibold text-tertiary uppercase">{k.replace(/_/g, " ")}</th>
+                <tr className="bg-layer-1">
+                  {config.columns.map((col) => (
+                    <th key={col.key} className="text-left px-3 py-2 text-caption-xs font-semibold text-tertiary uppercase">{col.label}</th>
                   ))}
+                  <th className="w-10 px-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {data.slice(0, 100).map((row, i) => (
-                  <tr key={row.id || i} className="border-b border-border-subtle hover:bg-layer-transparent-hover">
-                    {Object.entries(row).filter(([k]) => !["id", "date_maj"].includes(k)).slice(0, 7).map(([k, v]) => (
-                      <td key={k} className="px-4 py-2 text-secondary">
-                        {typeof v === "boolean" ? (v ? "Oui" : "Non") : typeof v === "number" ? (v % 1 === 0 ? v : v.toFixed(2)) : Array.isArray(v) ? v.join(", ") : v == null ? "\u2014" : String(v).slice(0, 40)}
-                      </td>
-                    ))}
+                {data.map((item) => (
+                  <tr key={item.id} className="border-t border-border-subtle hover:bg-layer-transparent-hover group">
+                    {config.columns.map((col) => {
+                      const isEditing = editCell?.id === item.id && editCell?.key === col.key;
+                      const cellVal = item[col.key];
+                      return (
+                        <td key={col.key} className="px-3 py-1.5">
+                          {isEditing ? (
+                            col.type === "select" ? (
+                              <select autoFocus value={editVal} onChange={(e) => patchItem(item.id, col.key, e.target.value)}
+                                onBlur={() => setEditCell(null)}
+                                className="w-full h-7 px-2 rounded border border-accent-primary bg-layer-2 text-primary text-sm focus:outline-none"
+                              >
+                                {col.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                              </select>
+                            ) : (
+                              <input autoFocus type={col.type === "number" ? "number" : "text"}
+                                step={col.type === "number" ? "0.01" : undefined}
+                                value={editVal ?? ""} onChange={(e) => setEditVal(col.type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)}
+                                onBlur={() => patchItem(item.id, col.key, editVal)}
+                                onKeyDown={(e) => { if (e.key === "Enter") patchItem(item.id, col.key, editVal); if (e.key === "Escape") setEditCell(null); }}
+                                className="w-full h-7 px-2 rounded border border-accent-primary bg-layer-2 text-primary text-sm focus:outline-none"
+                              />
+                            )
+                          ) : (
+                            <span
+                              className={col.editable ? "cursor-pointer hover:bg-layer-1-hover px-2 py-1 -mx-1 rounded transition-colors text-primary" : "text-secondary"}
+                              onClick={() => { if (col.editable) { setEditCell({ id: item.id, key: col.key }); setEditVal(cellVal); } }}
+                            >
+                              {col.type === "select" && col.options
+                                ? col.options.find((o) => o.value === cellVal)?.label || cellVal
+                                : typeof cellVal === "number" ? (cellVal % 1 === 0 ? cellVal : cellVal.toFixed(2)) : cellVal ?? "\u2014"}
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-1.5">
+                      <button onClick={() => deleteItem(item.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-danger-subtle text-tertiary hover:text-danger-secondary transition-all" title="Supprimer">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

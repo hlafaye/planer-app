@@ -33,11 +33,17 @@ urlpatterns = [
     path("postes-types/", PosteTypeViewSet.as_view({"get": "list"}), name="ao-postes"),
     # Stats
     path("stats/", AOStatsView.as_view(), name="ao-stats"),
-    # Sprint 2.5 : Referentiels
-    path("referentiels/frais-generaux/", FraisGenerauxTypeViewSet.as_view({"get": "list"}), name="ao-ref-fg"),
-    path("referentiels/investissements/", InvestissementTypeViewSet.as_view({"get": "list"}), name="ao-ref-invest"),
-    path("referentiels/taux-charges/", TauxChargesViewSet.as_view({"get": "list"}), name="ao-ref-taux"),
-    path("referentiels/tranches/", TrancheFreqViewSet.as_view({"get": "list"}), name="ao-ref-tranches"),
-    path("referentiels/postes/", PosteTypeViewSet.as_view({"get": "list"}), name="ao-ref-postes"),
-    path("referentiels/produits/", ProduitAlimentaireViewSet.as_view({"get": "list"}), name="ao-ref-produits"),
+    # Sprint 2.5 : Referentiels — full CRUD (list, create, retrieve, update, delete)
+    path("referentiels/postes/", PosteTypeViewSet.as_view({"get": "list", "post": "create"}), name="ao-ref-postes"),
+    path("referentiels/postes/<int:pk>/", PosteTypeViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="ao-ref-postes-detail"),
+    path("referentiels/frais-generaux/", FraisGenerauxTypeViewSet.as_view({"get": "list", "post": "create"}), name="ao-ref-fg"),
+    path("referentiels/frais-generaux/<int:pk>/", FraisGenerauxTypeViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="ao-ref-fg-detail"),
+    path("referentiels/investissements/", InvestissementTypeViewSet.as_view({"get": "list", "post": "create"}), name="ao-ref-invest"),
+    path("referentiels/investissements/<int:pk>/", InvestissementTypeViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="ao-ref-invest-detail"),
+    path("referentiels/taux-charges/", TauxChargesViewSet.as_view({"get": "list", "post": "create"}), name="ao-ref-taux"),
+    path("referentiels/taux-charges/<int:pk>/", TauxChargesViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="ao-ref-taux-detail"),
+    path("referentiels/tranches/", TrancheFreqViewSet.as_view({"get": "list", "post": "create"}), name="ao-ref-tranches"),
+    path("referentiels/tranches/<int:pk>/", TrancheFreqViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="ao-ref-tranches-detail"),
+    path("referentiels/produits/", ProduitAlimentaireViewSet.as_view({"get": "list", "post": "create"}), name="ao-ref-produits"),
+    path("referentiels/produits/<int:pk>/", ProduitAlimentaireViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="ao-ref-produits-detail"),
 ]
